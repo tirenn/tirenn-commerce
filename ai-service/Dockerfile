@@ -13,8 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
-# Pre-download and bake the SOTA Multilingual & Indonesian Embedding Model (~180MB, 384-dim)
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('intfloat/multilingual-e5-small')"
+# Pre-download and bake the Multilingual Embedding Model (~220MB, 384-dim)
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')"
+
 
 # Copy application source code
 COPY . .

@@ -14,18 +14,16 @@
   - Database name: `gocommerce_db`, user: `gouser`.
   - Storing both relational business data (Users, Categories, Products, Orders, Order Items, Stock Logs) and 384-dimensional dense vectors (`products.embedding`) with **`HNSW`** index.
   - Replaces external vector DBs (e.g. Qdrant) with unified SQL Cosine distance (`<=>`) queries, eliminating dual-write sync issues and stale search data.
-- **🤖 Conversational AI Shopper (Agentic Tool Calling + RAG)**:
-  - **Local LLM Engine**: **Ollama** running `qwen2.5:3b` in Docker (`tirenn-ollama` on Port `11434`).
-  - **Tool Calling Architecture**: The LLM calls 3 autonomous tools:
-    1. `search_products`: Native `pgvector` Cosine distance similarity with `min_price`, `max_price`, `in_stock`, and `category_id` filters.
-    2. `check_product_stock`: Real-time inventory and pricing lookup via Go backend API.
-    3. `add_to_cart`: Autonomous item addition to customer cart.
-  - **Conversational Modal UI**: Interactive chat with native Markdown support (`**bold**`, lists, bullets), product card previews with thumbnails, SKU badges, dynamic tool execution indicators, and **Reset Chat** functionality.
+- **⚡ Golang High-Performance API Gateway (`backend/`)**:
+  - **Framework**: **Gin Web Framework** + **GORM (PostgreSQL Driver)** running on Port 8080.
+  - **Architecture**: Domain-Driven Clean Architecture (`auth`, `product`, `order`, `customer`, `dashboard`, `ai`).
+  - **Single Entrypoint Gateway**: Frontend exclusively calls port 8080. All AI chat, search, and admin endpoints are routed through Go.
+  - **Redis Rate Limiting Middleware**: Distributed sliding-window rate limiting (`tirenn-redis:6379`) enforcing 120 req/min per IP with standard `X-RateLimit-*` headers and `429 Too Many Requests`.
+  - **Distributed Request Tracing**: Context-aware logger extracting `X-Request-ID` across Handlers, UseCases, and Repositories.
 - **🧠 Python AI Semantic Search Microservice (`ai-service/`)**:
-  - **Framework**: **FastAPI** + **Uvicorn** running on Port 8000.
+  - **Framework**: **FastAPI** + **Uvicorn** running on Port 8000 in internal Docker network.
   - **Local Embedding Engine**: **SentenceTransformers** (`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`) running locally with native **Bahasa Indonesia** understanding (~220MB model size, 384 dimensions, string-literal pgvector serialization).
-  - **PostgreSQL Vector Adapter**: Direct connection via `psycopg2` and `pgvector` Python client.
-  - **Endpoints**: `POST /api/v1/search/semantic`, `POST /api/v1/chat/shopper`, `POST /api/v1/index-products`, `POST /api/v1/sync-from-backend`, `GET /healthz`.
+  - **Direct PostgreSQL Tool Execution (Option B)**: AI tools (`check_product_stock`, `search_products`, `add_to_cart`) query PostgreSQL directly via `psycopg2` & `pgvector` with zero circular HTTP callbacks to Go Backend.
 - **📊 Centralized Observability & Logging Stack (`logging/`)**:
   - **Grafana Loki 3.0** (Port `3100`): Centralized log aggregation engine.
   - **Grafana Promtail 3.0** (Port `9080`): Automatic Docker container log scraper via `/var/run/docker.sock`.

@@ -12,61 +12,43 @@ Tirenn Commerce is architected as a **polyglot, high-performance distributed e-c
 
 ```mermaid
 flowchart TD
-    subgraph ClientLayer["1. Client & Presentation Layer"]
-        FE["💻 Web Storefront, Admin Console & AI Chat<br/>(React 19 + TypeScript + Vite + Tailwind 4)"]
+    subgraph ClientLayer["1. Client Layer"]
+        FE["💻 Web Storefront, Admin & AI Chat<br/>(React 19 + TypeScript + Vite + Tailwind 4)"]
     end
 
-    subgraph GatewayLayer["2. Reverse Proxy & Networking"]
-        NGX["🌐 Nginx Alpine (:3000)"]
+    subgraph CoreBackend["2. Core Golang Backend (:8080)"]
+        GIN["⚡ Go 1.24 + Gin Engine<br/>- Auth, Products, Orders, Admin, Redis Rate Limiter"]
     end
 
-    subgraph CoreBackend["3. Transactional Core Backend (:8080)"]
-        GIN["⚡ Go 1.24 + Gin Engine"]
-        REQID["🆔 RequestID Context Middleware"]
-        APPLOG["📝 Layer Error Logger (Handler -> UseCase -> Repo)"]
-        AUTH["🔐 JWT RBAC Auth"]
-        CATALOG["📦 Catalog & Case-Insensitive ILIKE Search"]
-        ORDER["🛒 Order Processing & Atomic Locks"]
+    subgraph AIServiceLayer["3. Python AI Microservice (:8000)"]
+        FASTAPI["🐍 Python 3.11 + FastAPI + Clean Architecture<br/>- Chat Shopper, pgvector Search, Redis Rate Limiter"]
     end
 
-    subgraph AIServiceLayer["4. AI & Conversational Microservice (:8000)"]
-        FASTAPI["🐍 Python 3.11 + FastAPI"]
-        SHOPPER["🤖 Agentic AI Shopper (Tool Calling Engine)"]
-        EMBED["🧠 FastEmbed (bge-small ONNX)"]
-        OLLAMA["🦙 Ollama Local LLM Container (:11434)<br/>(Qwen 2.5:3b)"]
-    end
-
-    subgraph DataPersistence["5. Unified Relational & Vector Persistence (:5432)"]
+    subgraph StorageLayer["4. Unified Relational & Vector Persistence (:5432 & :6379)"]
         PG[("🐘 PostgreSQL 16 + pgvector<br/>(ACID Transactions + HNSW Vector Indexing)")]
+        RD[("🔴 Redis 7<br/>(Atomic Sliding Window Rate Limiting)")]
+        OLLAMA["🦙 Ollama Local LLM (:11434)<br/>(Qwen 2.5:3b)"]
     end
 
-    subgraph ObservabilityLayer["6. Centralized Logging & Tracing"]
+    subgraph ObservabilityLayer["5. Centralized Observability"]
         PROMTAIL["📦 Promtail Log Collector (:9080)"]
         LOKI[("🗄️ Grafana Loki Storage (:3100)")]
         GRAFANA["📊 Grafana Dashboard (:3001)"]
     end
 
-    subgraph TestingLayer["7. Automated QA Matrix"]
-        PW["🎭 Playwright (Browser E2E)"]
-        GOTEST["🧪 Go Concurrency & Race Tests"]
-    end
+    FE -->|"E-Commerce API Calls"| GIN
+    FE -->|"Direct AI Chat / Shopper"| FASTAPI
+    
+    GIN -->|"Rate Limiting"| RD
+    GIN -->|"ACID SQL Transactions"| PG
+    
+    FASTAPI -->|"Rate Limiting"| RD
+    FASTAPI -->|"Hybrid Vector SQL <=> Queries"| PG
+    FASTAPI -->|"Agentic Tool Calling"| OLLAMA
 
-    FE -->|HTTP / Bundle| NGX
-    NGX -->|REST API Calls| GIN
-    FE -->|Chat API /shopper| FASTAPI
-    GIN --> REQID --> APPLOG --> AUTH & CATALOG & ORDER
-    CATALOG -->|Hybrid Semantic Search / Sync| FASTAPI
-    SHOPPER -->|Ollama Chat API| OLLAMA
-    SHOPPER -->|Native Cosine Distance SQL <=>| PG
-    FASTAPI -->|HNSW Vector Indexing| PG
-    GIN -->|GORM / SQL / SELECT FOR UPDATE| PG
-    
-    GIN & FASTAPI & NGX & PG & OLLAMA -->|Stdout Structured JSON| PROMTAIL
-    PROMTAIL -->|Push Batch Logs| LOKI
+    GIN & FASTAPI & PG & OLLAMA -->|Structured JSON Logs| PROMTAIL
+    PROMTAIL -->|Batch Push| LOKI
     LOKI --> GRAFANA
-    
-    PW -->|Automated Browser Actions| FE
-    GOTEST -->|Concurrent Load Testing| GIN
 ```
 
 ---
@@ -85,26 +67,28 @@ flowchart TD
 
 ---
 
-### B. Core Transactional Backend Layer
+### B. Core Transactional Backend
 
-| Technology | Role | Why We Chose It |
-| :--- | :--- | :--- |
-| **Golang 1.24+** | Core Backend Language | **Microsecond execution latency**, low memory footprint, compiled static binary, superior goroutine concurrency model. |
-| **Gin Framework** | HTTP Router & Middleware Engine | Lightweight, high-performance HTTP web framework with minimal memory allocations per request. |
-| **RequestID Context Middleware** | Distributed Tracing Key | Generates/preserves `X-Request-ID`, injects it into Go `context.Context`, attaches it to response headers and JSON responses. |
-| **Layer Error Logging** | Context-Aware Error Logger | Logs structured JSON (`APP_LOG`) across Handlers, UseCases, and Repositories including caller file/line numbers and request IDs. |
-| **GORM (PostgreSQL Driver)** | Object Relational Mapper | Type-safe query building, automatic table migrations with `pgvector` support, connection pooling. |
-| **JWT (golang-jwt)** | Stateless RBAC Authentication | Secure, signed authorization tokens with zero database lookups required on authenticated routes. |
+| Technology | Version | Purpose |
+| :--- | :---: | :--- |
+| **API Gateway & Core** | **1.25+** | Centralized API gateway, request tracing, JWT auth, and unified entrypoint for Frontend & AI tools. |
+| **Distributed Cache & Rate Limiter** | **7-alpine** | Distributed sliding-window rate limiting middleware (120 req/min per IP) returning `429 Too Many Requests` & `X-RateLimit-*`. |
+| **Primary Database & Vector Engine** | **16 (pgvector/pgvector:pg16)** | Single relational ACID database + Dense Vector Similarity Search using `HNSW` indexing. |
+| **Frontend Web Client** | **18.x / 6.x** | Storefront UI, Admin Back-office, and Conversational AI Shopper calling exclusively Golang API (Port 8080). |
+| **AI Intelligence Service** | **3.11 / 0.115** | Internal AI microservice for embeddings and agentic tool synthesis with Ollama. |
 
 ---
 
-### C. AI, Vector Semantic Search & Conversational Microservice
+### C. Python AI & Semantic Search Microservice
 
-| Technology | Role | Why We Chose It |
+The Python AI service adheres strictly to **Clean Architecture** (Handler ➔ UseCase ➔ Repository) mirroring the Golang backend:
+
+| Layer | Component | Responsibility |
 | :--- | :--- | :--- |
-| **Python 3.11** | AI Service Runtime | The global standard for Artificial Intelligence, data manipulation, and vector embedding operations. |
-| **FastAPI + Uvicorn** | Async Web Framework | Asynchronous non-blocking request handling, automatic OpenAPI/Swagger documentation (`/docs`), and native Pydantic v2 validation. |
-| **Ollama + Qwen 2.5 (3B)** | Local LLM for Agentic Tool Calling | State-of-the-art Indonesian & English reasoning, native JSON tool calling capabilities, running 100% locally in Docker. |
+| **Delivery / Handlers** | [`chat_handler.py`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/ai-service/app/handlers/chat_handler.py), [`catalog_handler.py`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/ai-service/app/handlers/catalog_handler.py) | FastAPI endpoints, Pydantic request validation, and HTTP status handling. |
+| **Business / UseCases** | [`shopper_usecase.py`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/ai-service/app/usecases/shopper_usecase.py), [`search_usecase.py`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/ai-service/app/usecases/search_usecase.py), [`sync_usecase.py`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/ai-service/app/usecases/sync_usecase.py) | Autonomous agent loops, dynamic tool resolution, hybrid ranking algorithms, and catalog sync. |
+| **Data / Repositories** | [`product_repository.py`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/ai-service/app/repositories/product_repository.py), [`llm_repository.py`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/ai-service/app/repositories/llm_repository.py), [`embedding_repository.py`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/ai-service/app/repositories/embedding_repository.py) | Direct PostgreSQL queries, pgvector `HNSW` similarity search, Ollama HTTP client, and `SentenceTransformers`. |
+| **Domain / Entities** | `domain/product.py`, `domain/chat.py`, `domain/category.py` | Core domain entities (`Product`, `ScoredProduct`, `ChatMessage`, `Category`). | State-of-the-art Indonesian & English reasoning, native JSON tool calling capabilities, running 100% locally in Docker. |
 | **pgvector Native Search** | Unified Vector Similarity Engine | Directly executes Cosine Distance (`<=>`) queries inside PostgreSQL using high-speed `HNSW` indexing. |
 | **Multilingual Vector Embedder** | High-Precision Semantic Engine | Runs on **`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`** (384 dimensions, **~220MB**) with sharp cosine contrast separation and string-literal PostgreSQL pgvector serialization. |
 | **Structured AI Audit Logging** | Response Audit Trail | Emits `AI_RESPONSE_LOG` for every chat turn capturing user prompts, tool arguments, database outputs, total latency, and full AI answers. |

@@ -336,6 +336,7 @@ export const App: React.FC = () => {
           <AIChatModal
             isOpen={isAIChatOpen}
             onClose={() => setIsAIChatOpen(false)}
+            onAuthRequired={() => setIsAuthOpen(true)}
           />
         </>
       )}

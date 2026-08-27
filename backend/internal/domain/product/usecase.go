@@ -18,7 +18,6 @@ type UseCase interface {
 	UpdateProduct(ctx context.Context, id uint, req *UpdateProductRequest) (*Product, error)
 	DeleteProduct(ctx context.Context, id uint) error
 	ListProducts(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error)
-	SyncCatalogToAI(ctx context.Context) error
 
 	AdjustStock(ctx context.Context, productID uint, req *StockAdjustRequest, adminID uint) (*Product, error)
 	GetStockLogs(ctx context.Context, productID uint) ([]StockAdjustmentLog, error)
@@ -214,22 +213,6 @@ func (u *useCase) ListProducts(ctx context.Context, filter ProductFilterQuery) (
 		return nil, 0, err
 	}
 	return products, total, nil
-}
-
-func (u *useCase) SyncCatalogToAI(ctx context.Context) error {
-	if u.aiClient == nil {
-		return nil
-	}
-	products, err := u.repo.ListAll(ctx)
-	if err != nil {
-		logger.Error(ctx, "usecase", "failed to list all products for AI sync", err)
-		return err
-	}
-	if err := u.aiClient.SyncProducts(ctx, products); err != nil {
-		logger.Error(ctx, "usecase", "failed to sync products to AI service", err)
-		return err
-	}
-	return nil
 }
 
 func (u *useCase) AdjustStock(ctx context.Context, productID uint, req *StockAdjustRequest, adminID uint) (*Product, error) {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"gocommerce-backend/internal/config"
 	"gocommerce-backend/internal/domain/auth"
 	"gocommerce-backend/internal/domain/customer"
@@ -25,7 +26,7 @@ type Handlers struct {
 }
 
 // SetupRouter initializes Gin engine, middleware, and all API endpoints
-func SetupRouter(cfg *config.Config, handlers *Handlers) *gin.Engine {
+func SetupRouter(cfg *config.Config, handlers *Handlers, rdb *redis.Client) *gin.Engine {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -36,12 +37,14 @@ func SetupRouter(cfg *config.Config, handlers *Handlers) *gin.Engine {
 	r.Use(middleware.RequestID())
 	r.Use(middleware.SetupCORS())
 	r.Use(middleware.StructuredLogger())
+	r.Use(middleware.RateLimiter(rdb, cfg))
 
 	// Health Check Endpoint
 	r.GET("/healthz", func(c *gin.Context) {
-		utils.Success(c, http.StatusOK, "GoCommerce API is healthy 🚀", gin.H{
+		utils.Success(c, http.StatusOK, "Tirenn Commerce API is healthy 🚀", gin.H{
 			"status":      "online",
-			"database":    "mysql",
+			"database":    "postgres",
+			"redis":       rdb != nil,
 			"environment": cfg.Environment,
 			"timestamp":   time.Now().UTC(),
 		})
@@ -78,29 +81,28 @@ func SetupRouter(cfg *config.Config, handlers *Handlers) *gin.Engine {
 		}
 
 		// -------------------------------------------------------------
-		// Admin Back-Office Routes (Requires JWT & ADMIN Role)
+		// Protected Merchant / Admin Routes
 		// -------------------------------------------------------------
-		adminGroup := v1.Group("/admin", middleware.JWTAuth(cfg), middleware.RequireAdmin())
+		admin := v1.Group("/admin", middleware.JWTAuth(cfg))
 		{
-			// Dashboard & Analytics
-			adminGroup.GET("/dashboard", handlers.Dashboard.GetDashboard)
+			// Dashboard & Financial KPIs
+			admin.GET("/dashboard", handlers.Dashboard.GetDashboard)
 
-			// Products & Inventory Operations
-			adminGroup.GET("/products", handlers.Product.AdminListProducts)
-			adminGroup.POST("/products", handlers.Product.CreateProduct)
-			adminGroup.PUT("/products/:id", handlers.Product.UpdateProduct)
-			adminGroup.DELETE("/products/:id", handlers.Product.DeleteProduct)
-			adminGroup.POST("/products/:id/adjust-stock", handlers.Product.AdjustStock)
-			adminGroup.GET("/products/:id/stock-logs", handlers.Product.GetStockLogs)
-			adminGroup.POST("/categories", handlers.Product.CreateCategory)
+			// Catalog & Inventory Management
+			admin.POST("/products", handlers.Product.CreateProduct)
+			admin.PUT("/products/:id", handlers.Product.UpdateProduct)
+			admin.DELETE("/products/:id", handlers.Product.DeleteProduct)
+			admin.POST("/products/:id/adjust-stock", handlers.Product.AdjustStock)
+			admin.GET("/products/:id/stock-logs", handlers.Product.GetStockLogs)
+			admin.POST("/categories", handlers.Product.CreateCategory)
 
-			// Order Fulfillment Operations
-			adminGroup.GET("/orders", handlers.Order.AdminListOrders)
-			adminGroup.PATCH("/orders/:id/status", handlers.Order.AdminUpdateOrderStatus)
+			// Customer CRM Management
+			admin.GET("/customers", handlers.Customer.ListCustomers)
+			admin.PATCH("/customers/:id/status", handlers.Customer.UpdateStatus)
 
-			// Customer CRM Operations
-			adminGroup.GET("/customers", handlers.Customer.ListCustomers)
-			adminGroup.PATCH("/customers/:id/status", handlers.Customer.UpdateStatus)
+			// Order Fulfillment Management
+			admin.GET("/orders", handlers.Order.AdminListOrders)
+			admin.PATCH("/orders/:id/status", handlers.Order.AdminUpdateOrderStatus)
 		}
 	}
 

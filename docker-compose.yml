@@ -1,7 +1,12 @@
 version: '3.8'
 
+# ==============================================================================
+# Tirenn Commerce - Core Infrastructure Stack
+# Services: PostgreSQL (pgvector), Redis, Ollama, Loki, Promtail, Grafana
+# ==============================================================================
+
 services:
-  # PostgreSQL Database with pgvector Extension
+  # 1. PostgreSQL Database with pgvector Extension
   postgres:
     image: pgvector/pgvector:pg16
     container_name: tirenn-postgres
@@ -22,7 +27,24 @@ services:
     networks:
       - tirenn-net
 
-  # Ollama LLM Container (Qwen 2.5 for Conversational AI Shopper)
+  # 2. Redis In-Memory Cache (Distributed Rate Limiting)
+  redis:
+    image: redis:7-alpine
+    container_name: tirenn-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - tirenn-net
+
+  # 3. Ollama LLM Container (Qwen 2.5 for AI Shopper)
   ollama:
     image: ollama/ollama:latest
     container_name: tirenn-ollama
@@ -34,84 +56,7 @@ services:
     networks:
       - tirenn-net
 
-  # Python AI Semantic Search & Conversational Shopper Service (pgvector Native)
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    container_name: tirenn-ai-service
-    restart: always
-    environment:
-      PORT: 8000
-      ENVIRONMENT: production
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: gouser
-      DB_PASSWORD: gopassword
-      DB_NAME: gocommerce_db
-      BACKEND_API_URL: http://backend:8080/api/v1
-      OLLAMA_BASE_URL: http://ollama:11434
-      LLM_MODEL: qwen2.5:3b
-    ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      ollama:
-        condition: service_started
-    networks:
-      - tirenn-net
-
-  # Golang Backend Service
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: tirenn-backend
-    restart: always
-    environment:
-      PORT: 8080
-      ENVIRONMENT: production
-      AI_SERVICE_URL: http://ai-service:8000
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: gouser
-      DB_PASSWORD: gopassword
-      DB_NAME: gocommerce_db
-      JWT_SECRET: super-secret-tirenn-jwt-key-2026
-      JWT_EXPIRE_HOURS: 24
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      ai-service:
-        condition: service_started
-    networks:
-      - tirenn-net
-
-  # React Frontend Service
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_BASE_URL=http://localhost:8080/api/v1
-        - VITE_BACKEND_URL=http://localhost:8080
-    container_name: tirenn-frontend
-    restart: always
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    networks:
-      - tirenn-net
-
-  # ----------------------------------------------------------------------------
-  # Centralized Observability & Logging Stack (Loki + Promtail + Grafana)
-  # ----------------------------------------------------------------------------
-
-  # Centralized Log Storage Engine (Grafana Loki)
+  # 4. Centralized Log Storage Engine (Grafana Loki)
   loki:
     image: grafana/loki:3.0.0
     container_name: tirenn-loki
@@ -125,7 +70,7 @@ services:
     networks:
       - tirenn-net
 
-  # Log Collector & Docker Shipper (Grafana Promtail)
+  # 5. Log Collector & Docker Shipper (Grafana Promtail)
   promtail:
     image: grafana/promtail:3.0.0
     container_name: tirenn-promtail
@@ -139,7 +84,7 @@ services:
     networks:
       - tirenn-net
 
-  # Unified Log Visualization Dashboard (Grafana on :3001)
+  # 6. Unified Log Visualization Dashboard (Grafana)
   grafana:
     image: grafana/grafana:latest
     container_name: tirenn-grafana
@@ -160,10 +105,13 @@ services:
 
 networks:
   tirenn-net:
+    name: tirenn-net
     driver: bridge
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
   ollama_models:
     driver: local

@@ -24,8 +24,12 @@ class IndexProductsResponse(BaseModel):
 
 class SemanticSearchRequest(BaseModel):
     query: str = Field(..., description="User search text or natural language prompt", min_length=1)
-    limit: int = Field(default=12, ge=1, le=50)
+    limit: Optional[int] = Field(default=None, ge=1, le=50)
     category_id: Optional[int] = Field(default=0, ge=0)
+    min_price: Optional[float] = Field(default=None, ge=0)
+    max_price: Optional[float] = Field(default=None, ge=0)
+    in_stock: Optional[bool] = Field(default=None)
+    score_threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 class ScoredProductResult(BaseModel):
     id: int

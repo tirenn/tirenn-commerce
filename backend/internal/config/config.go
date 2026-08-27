@@ -35,6 +35,21 @@ func (d *DatabaseConfig) DSN() string {
 	)
 }
 
+// RedisConfig stores Redis caching and rate-limiting connection parameters
+type RedisConfig struct {
+	Host                   string `mapstructure:"REDIS_HOST"`
+	Port                   string `mapstructure:"REDIS_PORT"`
+	Password               string `mapstructure:"REDIS_PASSWORD"`
+	DB                     int    `mapstructure:"REDIS_DB"`
+	RateLimitReqPerMinute  int    `mapstructure:"RATE_LIMIT_REQUESTS_PER_MINUTE"`
+	RateLimitWindowSeconds int    `mapstructure:"RATE_LIMIT_WINDOW_SECONDS"`
+}
+
+// Addr returns the formatted Redis host:port address
+func (r *RedisConfig) Addr() string {
+	return fmt.Sprintf("%s:%s", r.Host, r.Port)
+}
+
 // JWTConfig stores JSON Web Token parameters
 type JWTConfig struct {
 	Secret      string `mapstructure:"JWT_SECRET"`
@@ -46,26 +61,33 @@ type JWTConfig struct {
 type Config struct {
 	Server   ServerConfig   `mapstructure:",squash"`
 	Database DatabaseConfig `mapstructure:",squash"`
+	Redis    RedisConfig    `mapstructure:",squash"`
 	JWT      JWTConfig      `mapstructure:",squash"`
 
 	// Flat field accessors for convenience
-	Port           string
-	Environment    string
-	AIServiceURL   string
-	DBHost         string
-	DBPort         string
-	DBUser         string
-	DBPassword     string
-	DBName         string
-	JWTSecret      string
-	JWTExpireHours int
+	Port                   string
+	Environment            string
+	AIServiceURL           string
+	DBHost                 string
+	DBPort                 string
+	DBUser                 string
+	DBPassword             string
+	DBName                 string
+	RedisHost              string
+	RedisPort              string
+	RedisPassword          string
+	RedisDB                int
+	RateLimitReqPerMinute  int
+	RateLimitWindowSeconds int
+	JWTSecret              string
+	JWTExpireHours         int
 }
 
 // LoadConfig initializes Viper, binds environment variables, loads .env if present, and returns Config
 func LoadConfig(paths ...string) *Config {
 	v := viper.New()
 
-	// 1. Set Defaults for PostgreSQL
+	// 1. Set Defaults for PostgreSQL, Redis, and Services
 	v.SetDefault("PORT", "8080")
 	v.SetDefault("ENVIRONMENT", "development")
 	v.SetDefault("AI_SERVICE_URL", "http://localhost:8000")
@@ -74,6 +96,12 @@ func LoadConfig(paths ...string) *Config {
 	v.SetDefault("DB_USER", "gouser")
 	v.SetDefault("DB_PASSWORD", "gopassword")
 	v.SetDefault("DB_NAME", "gocommerce_db")
+	v.SetDefault("REDIS_HOST", "127.0.0.1")
+	v.SetDefault("REDIS_PORT", "6379")
+	v.SetDefault("REDIS_PASSWORD", "")
+	v.SetDefault("REDIS_DB", 0)
+	v.SetDefault("RATE_LIMIT_REQUESTS_PER_MINUTE", 120)
+	v.SetDefault("RATE_LIMIT_WINDOW_SECONDS", 60)
 	v.SetDefault("JWT_SECRET", "super-secret-tirenn-jwt-key-2026")
 	v.SetDefault("JWT_EXPIRE_HOURS", 24)
 	v.SetDefault("JWT_ISSUER", "gocommerce-api")
@@ -119,6 +147,12 @@ func LoadConfig(paths ...string) *Config {
 	cfg.DBUser = v.GetString("DB_USER")
 	cfg.DBPassword = v.GetString("DB_PASSWORD")
 	cfg.DBName = v.GetString("DB_NAME")
+	cfg.RedisHost = v.GetString("REDIS_HOST")
+	cfg.RedisPort = v.GetString("REDIS_PORT")
+	cfg.RedisPassword = v.GetString("REDIS_PASSWORD")
+	cfg.RedisDB = v.GetInt("REDIS_DB")
+	cfg.RateLimitReqPerMinute = v.GetInt("RATE_LIMIT_REQUESTS_PER_MINUTE")
+	cfg.RateLimitWindowSeconds = v.GetInt("RATE_LIMIT_WINDOW_SECONDS")
 	cfg.JWTSecret = v.GetString("JWT_SECRET")
 	cfg.JWTExpireHours = v.GetInt("JWT_EXPIRE_HOURS")
 
@@ -131,6 +165,12 @@ func LoadConfig(paths ...string) *Config {
 	cfg.Database.User = cfg.DBUser
 	cfg.Database.Password = cfg.DBPassword
 	cfg.Database.Name = cfg.DBName
+	cfg.Redis.Host = cfg.RedisHost
+	cfg.Redis.Port = cfg.RedisPort
+	cfg.Redis.Password = cfg.RedisPassword
+	cfg.Redis.DB = cfg.RedisDB
+	cfg.Redis.RateLimitReqPerMinute = cfg.RateLimitReqPerMinute
+	cfg.Redis.RateLimitWindowSeconds = cfg.RateLimitWindowSeconds
 	cfg.JWT.Secret = cfg.JWTSecret
 	cfg.JWT.ExpireHours = cfg.JWTExpireHours
 	cfg.JWT.Issuer = v.GetString("JWT_ISSUER")

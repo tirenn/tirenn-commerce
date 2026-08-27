@@ -11,7 +11,18 @@ function getApiBaseUrl(): string {
   return 'http://localhost:8080/api/v1';
 }
 
-const API_BASE_URL = getApiBaseUrl();
+function getAIServiceUrl(): string {
+  if (import.meta.env.VITE_AI_SERVICE_URL) {
+    return import.meta.env.VITE_AI_SERVICE_URL.replace(/\/+$/, '');
+  }
+  if (import.meta.env.VITE_AI_API_BASE_URL) {
+    return import.meta.env.VITE_AI_API_BASE_URL.replace(/\/+$/, '');
+  }
+  return 'http://localhost:8000/api/v1';
+}
+
+export const API_BASE_URL = getApiBaseUrl();
+export const AI_API_BASE_URL = getAIServiceUrl();
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('tirenn_token') || localStorage.getItem('gocommerce_token');

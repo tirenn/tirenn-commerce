@@ -23,28 +23,34 @@ func main() {
 	// 1. Load Configurations
 	cfg := config.LoadConfig()
 
-	// 2. Initialize MySQL Database
+	// 2. Initialize PostgreSQL Database
 	db, err := database.InitDB(cfg)
 	if err != nil {
 		log.Fatalf("Fatal: Database initialization failed: %v", err)
 	}
 
-	// 3. Dependency Injection: Repositories & Clients
+	// 3. Initialize Redis Cache & Rate Limiter
+	rdb, err := database.InitRedis(cfg)
+	if err != nil {
+		log.Printf("Warning: Redis connection error: %v (rate limiter will operate in pass-through mode)\n", err)
+	}
+
+	// 4. Dependency Injection: Repositories & Clients
 	authRepo := auth.NewRepository(db)
 	productRepo := product.NewRepository(db)
 	orderRepo := order.NewRepository(db)
 	customerRepo := customer.NewRepository(db)
 	dashboardRepo := dashboard.NewRepository(db)
-	aiClient := product.NewAIClient(cfg.AIServiceURL)
+	productAIClient := product.NewAIClient(cfg.AIServiceURL)
 
-	// 4. Dependency Injection: UseCases
+	// 5. Dependency Injection: UseCases
 	authUseCase := auth.NewUseCase(authRepo, cfg)
-	productUseCase := product.NewUseCase(productRepo, aiClient)
+	productUseCase := product.NewUseCase(productRepo, productAIClient)
 	orderUseCase := order.NewUseCase(orderRepo)
 	customerUseCase := customer.NewUseCase(customerRepo)
 	dashboardUseCase := dashboard.NewUseCase(dashboardRepo)
 
-	// 5. Dependency Injection: Handlers
+	// 6. Dependency Injection: Handlers
 	handlers := &router.Handlers{
 		Auth:      auth.NewHandler(authUseCase),
 		Product:   product.NewHandler(productUseCase),
@@ -53,16 +59,16 @@ func main() {
 		Dashboard: dashboard.NewHandler(dashboardUseCase),
 	}
 
-	// 6. Setup Router from dedicated router package
-	engine := router.SetupRouter(cfg, handlers)
+	// 7. Setup Router from dedicated router package
+	engine := router.SetupRouter(cfg, handlers, rdb)
 
-	// 7. Server Configuration with Graceful Shutdown
+	// 8. Server Configuration with Graceful Shutdown
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      engine,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	go func() {
@@ -84,5 +90,9 @@ func main() {
 		log.Fatal("Server forced to shutdown:", err)
 	}
 
-	log.Println("Tirenn Commerce server exited cleanly.")
+	if rdb != nil {
+		_ = rdb.Close()
+	}
+
+	log.Println("Tirenn Commerce server exited gracefully.")
 }
