@@ -1,9 +1,9 @@
 # ==============================================================================
 # Tirenn Commerce Backend Makefile
-# Provides automation for Goose migrations, development, and builds
+# Provides automation for Goose migrations, development, builds, and Docker
 # ==============================================================================
 
-.PHONY: help run dev build test clean migrate-create migrate-up migrate-down migrate-status migrate-reset
+.PHONY: help run dev build test clean migrate-create migrate-up migrate-down migrate-status migrate-reset docker-up docker-down docker-logs
 
 help:
 	@echo "🛍️ Tirenn Commerce Backend Make Commands:"
@@ -16,16 +16,19 @@ help:
 	@echo "    make migrate-reset                         - Roll back ALL migrations"
 	@echo ""
 	@echo "  Application & Testing:"
-	@echo "    make run                                   - Run the server locally"
+	@echo "    make run                                   - Run the server locally on :8080"
 	@echo "    make test                                  - Run unit tests"
 	@echo "    make build                                 - Build server binary to bin/server"
 	@echo ""
+	@echo "  🐳 Docker Containerization:"
+	@echo "    make docker-up                             - Build and start Backend container (:8080)"
+	@echo "    make docker-down                           - Stop Backend container"
+	@echo "    make docker-logs                           - Tail Backend container logs"
 
 # ------------------------------------------------------------------------------
 # Goose Database Migrations
 # ------------------------------------------------------------------------------
 
-## Create a new migration file: make migrate-create name=add_new_table
 migrate-create:
 	@if [ -z "$(name)" ]; then \
 		echo "❌ Error: 'name' is required. Usage: make migrate-create name=your_migration_name"; \
@@ -33,19 +36,15 @@ migrate-create:
 	fi
 	go run ./cmd/migrate create $(name) sql
 
-## Apply all pending Up migrations
 migrate-up:
 	go run ./cmd/migrate up
 
-## Roll back the single most recent migration
 migrate-down:
 	go run ./cmd/migrate down
 
-## Check the current migration status
 migrate-status:
 	go run ./cmd/migrate status
 
-## Roll back all migrations
 migrate-reset:
 	go run ./cmd/migrate reset
 
@@ -59,11 +58,24 @@ run:
 dev:
 	go run ./cmd/server
 
+build:
+	go build -ldflags="-s -w" -o bin/server ./cmd/server
+
 test:
 	go test -v ./...
 
-build:
-	go build -v -o bin/server ./cmd/server
-
 clean:
 	rm -rf bin/
+
+# ------------------------------------------------------------------------------
+# Docker Containerization
+# ------------------------------------------------------------------------------
+
+docker-up:
+	docker compose up -d --build
+
+docker-down:
+	docker compose down
+
+docker-logs:
+	docker compose logs -f

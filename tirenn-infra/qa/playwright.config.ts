@@ -24,7 +24,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run preview --prefix ../frontend -- --port 3000',
+    command: 'npm run preview --prefix ../../tirenn-frontend -- --port 3000',
     port: 3000,
     reuseExistingServer: true,
     timeout: 120 * 1000,
