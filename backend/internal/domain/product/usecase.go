@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -16,20 +17,25 @@ type UseCase interface {
 	UpdateProduct(ctx context.Context, id uint, req *UpdateProductRequest) (*Product, error)
 	DeleteProduct(ctx context.Context, id uint) error
 	ListProducts(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error)
-	
+	SyncCatalogToAI(ctx context.Context) error
+
 	AdjustStock(ctx context.Context, productID uint, req *StockAdjustRequest, adminID uint) (*Product, error)
 	GetStockLogs(ctx context.Context, productID uint) ([]StockAdjustmentLog, error)
-	
+
 	CreateCategory(ctx context.Context, req *CreateCategoryRequest) (*Category, error)
 	ListCategories(ctx context.Context) ([]Category, error)
 }
 
 type useCase struct {
-	repo Repository
+	repo     Repository
+	aiClient AIClient
 }
 
-func NewUseCase(repo Repository) UseCase {
-	return &useCase{repo: repo}
+func NewUseCase(repo Repository, aiClient AIClient) UseCase {
+	return &useCase{
+		repo:     repo,
+		aiClient: aiClient,
+	}
 }
 
 func slugify(text string) string {
@@ -40,7 +46,7 @@ func slugify(text string) string {
 
 func (u *useCase) CreateProduct(ctx context.Context, req *CreateProductRequest) (*Product, error) {
 	// Verify category exists
-	_, err := u.repo.FindCategoryByID(ctx, req.CategoryID)
+	cat, err := u.repo.FindCategoryByID(ctx, req.CategoryID)
 	if err != nil {
 		return nil, errors.New("selected category does not exist")
 	}
@@ -64,6 +70,7 @@ func (u *useCase) CreateProduct(ctx context.Context, req *CreateProductRequest) 
 
 	product := &Product{
 		CategoryID:        req.CategoryID,
+		Category:          *cat,
 		Name:              req.Name,
 		Slug:              slug,
 		SKU:               strings.ToUpper(strings.TrimSpace(req.SKU)),
@@ -81,7 +88,14 @@ func (u *useCase) CreateProduct(ctx context.Context, req *CreateProductRequest) 
 		return nil, err
 	}
 
-	return u.repo.FindByID(ctx, product.ID)
+	created, err := u.repo.FindByID(ctx, product.ID)
+	if err == nil && u.aiClient != nil {
+		go func() {
+			_ = u.aiClient.SyncProducts(context.Background(), []Product{*created})
+		}()
+	}
+
+	return created, err
 }
 
 func (u *useCase) GetProductByID(ctx context.Context, id uint) (*Product, error) {
@@ -99,11 +113,12 @@ func (u *useCase) UpdateProduct(ctx context.Context, id uint, req *UpdateProduct
 	}
 
 	if req.CategoryID != nil {
-		_, err := u.repo.FindCategoryByID(ctx, *req.CategoryID)
+		cat, err := u.repo.FindCategoryByID(ctx, *req.CategoryID)
 		if err != nil {
 			return nil, errors.New("selected category does not exist")
 		}
 		product.CategoryID = *req.CategoryID
+		product.Category = *cat
 	}
 
 	if req.Name != nil && *req.Name != "" {
@@ -138,7 +153,14 @@ func (u *useCase) UpdateProduct(ctx context.Context, id uint, req *UpdateProduct
 		return nil, err
 	}
 
-	return u.repo.FindByID(ctx, id)
+	updated, err := u.repo.FindByID(ctx, id)
+	if err == nil && u.aiClient != nil {
+		go func() {
+			_ = u.aiClient.SyncProducts(context.Background(), []Product{*updated})
+		}()
+	}
+
+	return updated, err
 }
 
 func (u *useCase) DeleteProduct(ctx context.Context, id uint) error {
@@ -150,7 +172,34 @@ func (u *useCase) DeleteProduct(ctx context.Context, id uint) error {
 }
 
 func (u *useCase) ListProducts(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error) {
+	// If semantic search is requested and search text is present, attempt vector search
+	if filter.Semantic && strings.TrimSpace(filter.Search) != "" && u.aiClient != nil {
+		limit := filter.Limit
+		if limit < 1 {
+			limit = 12
+		}
+		ids, err := u.aiClient.SearchSemantic(ctx, filter.Search, filter.CategoryID, limit)
+		if err == nil && len(ids) > 0 {
+			products, err := u.repo.FindByIDs(ctx, ids)
+			if err == nil && len(products) > 0 {
+				return products, int64(len(products)), nil
+			}
+		}
+		log.Printf("Semantic search fallback to standard full-text query: %v\n", err)
+	}
+
 	return u.repo.List(ctx, filter)
+}
+
+func (u *useCase) SyncCatalogToAI(ctx context.Context) error {
+	if u.aiClient == nil {
+		return nil
+	}
+	products, err := u.repo.ListAll(ctx)
+	if err != nil {
+		return err
+	}
+	return u.aiClient.SyncProducts(ctx, products)
 }
 
 func (u *useCase) AdjustStock(ctx context.Context, productID uint, req *StockAdjustRequest, adminID uint) (*Product, error) {
@@ -176,7 +225,7 @@ func (u *useCase) AdjustStock(ctx context.Context, productID uint, req *StockAdj
 		return nil, errors.New("invalid adjustment type")
 	}
 
-	log := &StockAdjustmentLog{
+	logEntry := &StockAdjustmentLog{
 		ProductID:      productID,
 		AdjustmentType: req.Type,
 		Quantity:       req.Amount,
@@ -186,7 +235,7 @@ func (u *useCase) AdjustStock(ctx context.Context, productID uint, req *StockAdj
 		AdjustedBy:     adminID,
 	}
 
-	if err := u.repo.AdjustStock(ctx, log); err != nil {
+	if err := u.repo.AdjustStock(ctx, logEntry); err != nil {
 		return nil, err
 	}
 

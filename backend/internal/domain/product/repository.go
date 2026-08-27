@@ -11,10 +11,12 @@ type Repository interface {
 	// Product operations
 	Create(ctx context.Context, p *Product) error
 	FindByID(ctx context.Context, id uint) (*Product, error)
+	FindByIDs(ctx context.Context, ids []uint) ([]Product, error)
 	FindBySlug(ctx context.Context, slug string) (*Product, error)
 	Update(ctx context.Context, p *Product) error
 	Delete(ctx context.Context, id uint) error
 	List(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error)
+	ListAll(ctx context.Context) ([]Product, error)
 
 	// Stock adjustment
 	AdjustStock(ctx context.Context, log *StockAdjustmentLog) error
@@ -48,6 +50,31 @@ func (r *repository) FindByID(ctx context.Context, id uint) (*Product, error) {
 	return &p, nil
 }
 
+func (r *repository) FindByIDs(ctx context.Context, ids []uint) ([]Product, error) {
+	if len(ids) == 0 {
+		return []Product{}, nil
+	}
+	var products []Product
+	err := r.db.WithContext(ctx).Preload("Category").Where("id IN ?", ids).Find(&products).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Preserve the semantic relevance order returned by the vector search
+	idMap := make(map[uint]Product, len(products))
+	for _, p := range products {
+		idMap[p.ID] = p
+	}
+
+	ordered := make([]Product, 0, len(ids))
+	for _, id := range ids {
+		if p, ok := idMap[id]; ok {
+			ordered = append(ordered, p)
+		}
+	}
+	return ordered, nil
+}
+
 func (r *repository) FindBySlug(ctx context.Context, slug string) (*Product, error) {
 	var p Product
 	err := r.db.WithContext(ctx).Preload("Category").Where("slug = ?", slug).First(&p).Error
@@ -65,8 +92,14 @@ func (r *repository) Delete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&Product{}, id).Error
 }
 
-// formatBooleanFullText parses user search terms into MySQL Full-Text boolean search syntax
-// e.g. "wireless headphones" -> "+wireless* +headphones*", "TECH-AP-001" -> "+TECH* +AP* +001*"
+func (r *repository) ListAll(ctx context.Context) ([]Product, error) {
+	var products []Product
+	err := r.db.WithContext(ctx).Preload("Category").Where("is_active = ?", true).Find(&products).Error
+	return products, err
+}
+
+// formatBooleanFullText parses user search terms into intelligent MySQL Full-Text boolean search syntax
+// e.g. "celana jeans" -> "+(celana* jeans*) celana* jeans*", "TECH-AP-001" -> "+(TECH* AP* 001*) TECH* AP* 001*"
 func formatBooleanFullText(input string) string {
 	replacer := strings.NewReplacer("-", " ", "_", " ", "/", " ", ".", " ")
 	cleanedInput := replacer.Replace(input)
@@ -74,7 +107,7 @@ func formatBooleanFullText(input string) string {
 	if len(words) == 0 {
 		return ""
 	}
-	var formatted []string
+	var cleanWords []string
 	for _, w := range words {
 		clean := strings.Map(func(r rune) rune {
 			if strings.ContainsRune("+-~*<>\"()@", r) {
@@ -83,10 +116,17 @@ func formatBooleanFullText(input string) string {
 			return r
 		}, w)
 		if len(clean) > 0 {
-			formatted = append(formatted, "+"+clean+"*")
+			cleanWords = append(cleanWords, clean+"*")
 		}
 	}
-	return strings.Join(formatted, " ")
+	if len(cleanWords) == 0 {
+		return ""
+	}
+	if len(cleanWords) == 1 {
+		return "+" + cleanWords[0]
+	}
+	// Multi-word: Require at least one token, and boost ranking for rows with multiple tokens
+	return "+(" + strings.Join(cleanWords, " ") + ") " + strings.Join(cleanWords, " ")
 }
 
 func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error) {
@@ -101,14 +141,14 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 		query = query.Where("products.is_active = ?", true)
 	}
 
-	// Pure Full-Text Search across Products (name, description, sku) and Categories (name, description)
+	// High-Precision Full-Text Search across Products (name, description, sku)
 	if filter.Search != "" {
 		cleanSearch := strings.TrimSpace(filter.Search)
 		ftsQuery := formatBooleanFullText(cleanSearch)
 		if ftsQuery != "" {
 			query = query.Where(
-				"MATCH(products.name, products.description, products.sku) AGAINST (? IN BOOLEAN MODE) OR MATCH(categories.name, categories.description) AGAINST (? IN BOOLEAN MODE)",
-				ftsQuery, ftsQuery,
+				"MATCH(products.name, products.description, products.sku) AGAINST (? IN BOOLEAN MODE)",
+				ftsQuery,
 			)
 		}
 	}

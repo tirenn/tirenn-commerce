@@ -6,10 +6,12 @@ interface FilterBarProps {
   selectedCategoryId: number;
   selectedSort: string;
   onlyInStock: boolean;
+  isSemantic: boolean;
   totalProductsCount: number;
   onSelectCategory: (id: number) => void;
   onSelectSort: (sort: string) => void;
   onToggleInStock: (inStock: boolean) => void;
+  onToggleSemantic: (semantic: boolean) => void;
   onResetFilters: () => void;
 }
 
@@ -18,13 +20,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   selectedCategoryId,
   selectedSort,
   onlyInStock,
+  isSemantic,
   totalProductsCount,
   onSelectCategory,
   onSelectSort,
   onToggleInStock,
+  onToggleSemantic,
   onResetFilters,
 }) => {
-  const isFiltered = selectedCategoryId > 0 || onlyInStock || selectedSort !== 'newest';
+  const isFiltered = selectedCategoryId > 0 || onlyInStock || isSemantic || selectedSort !== 'newest';
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 mb-6 space-y-3">
@@ -73,6 +77,21 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </div>
 
         <div className="flex items-center gap-4">
+          {/* AI Semantic Search Toggle */}
+          <button
+            type="button"
+            data-testid="semantic-search-toggle"
+            onClick={() => onToggleSemantic(!isSemantic)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all cursor-pointer border ${
+              isSemantic
+                ? 'bg-purple-600 text-white border-purple-700 shadow-xs ring-2 ring-purple-300'
+                : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+            }`}
+          >
+            <span>🧠</span>
+            <span>AI Semantic {isSemantic ? 'ON' : 'OFF'}</span>
+          </button>
+
           <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 select-none">
             <input
               type="checkbox"

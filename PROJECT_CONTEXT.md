@@ -9,12 +9,16 @@
 **Tirenn Commerce** is a full-stack, production-grade **modern e-commerce marketplace and department store platform** designed with an ultra-simple, minimal, and high-converting UI:
 
 - **Branding**: **Tirenn Commerce** (`tirenn commerce`) - The Modern Online Marketplace.
-- **Auto-Pagination (Infinite Scrolling)**: Native `IntersectionObserver`-based auto pagination on the Storefront. As the shopper scrolls down, subsequent pages (`12 products/batch`) are fetched and appended seamlessly with zero lag, showing animated loading spinners and completion indicators (`✓ Semua 100 produk telah ditampilkan`).
+- **🧠 Python AI Semantic Search Microservice (`ai-service/`)**:
+  - **Framework**: **FastAPI** + **Uvicorn** running on Port 8000.
+  - **Local Embedding Engine**: **FastEmbed** (`BAAI/bge-small-en-v1.5` / `bge-m3` ONNX runtime) running 100% locally on CPU in <5ms with zero external API fees.
+  - **Vector DB**: Embedded **Qdrant** vector store with Cosine distance indexing across products (`name`, `category`, `description`, `sku`).
+  - **Endpoints**: `POST /api/v1/search/semantic`, `POST /api/v1/index-products`, `POST /api/v1/sync-from-backend`, `GET /healthz`.
+- **⚡ Hybrid Search in Go Backend**:
+  - `AIClient` in `backend/internal/domain/product/ai_client.go` routes semantic searches to the Python AI service when `?semantic=true` is requested.
+  - Graceful fallback: If the AI microservice is offline or returns empty, Go automatically falls back to pure MySQL Full-Text Search.
+- **Auto-Pagination (Infinite Scrolling)**: Native `IntersectionObserver`-based auto pagination on the Storefront (`12 products/batch`) with animated loading spinners and completion indicators (`✓ Semua 100 produk telah ditampilkan`).
 - **Catalog & Localization**: **100 Products across 8 Categories in Bahasa Indonesia** with authentic Indonesian names, product descriptions, localized user profiles, and Indonesian Rupiah (`Rp` / `IDR`) pricing.
-- **Search Engine**: **Pure MySQL Full-Text Search (FTS)** with zero `LIKE` queries. Indexes configured across:
-  - **Products**: `idx_products_fulltext (name, description, sku)`
-  - **Categories**: `idx_categories_fulltext (name, description)`
-  - Executing: `MATCH(products.name, products.description, products.sku) AGAINST (? IN BOOLEAN MODE) OR MATCH(categories.name, categories.description) AGAINST (? IN BOOLEAN MODE)`.
 - **Security & Git Hygiene**: Zero hardcoded credentials in Makefiles. `.gitignore` configured to ignore `.env`, binaries, test reports, and AI assistant artifacts (`.agents/`, `.gemini/`, `.claude/`, `.cursor/`).
 - **Currency**: **Indonesian Rupiah (IDR / Rp)** formatted across all storefront and admin operations (e.g. `Rp 1.499.000`).
 - **Role Isolation**:
@@ -22,14 +26,11 @@
   - **🛍️ Customer / Public**: Full access to clean storefront, real-time search, cart drawer, checkout, and order history.
 - **Frontend Stack**: **React 19 + TypeScript + Vite + Tailwind CSS 4** (clean component architecture in `frontend/src/`).
 - **Backend Stack**: **Golang (Go 1.24+)**, Gin framework, GORM ORM, strict MySQL database, Viper configuration loader, JWT RBAC, and Goose database migrations.
-- **API Documentation**:
-  - **Comprehensive Markdown Reference**: [`docs/API_DOCUMENTATION.md`](docs/API_DOCUMENTATION.md) (All endpoints, query params, DTOs, response schemas, and TypeScript interfaces).
-  - **OpenAPI 3.0.3 Spec**: [`docs/openapi.yaml`](docs/openapi.yaml) (Ready to import into Postman, Swagger UI, Insomnia).
 - **QA Automation Workspace (`qa/`)**:
   - **Browser E2E Testing**: **Playwright** located in `qa/` (`qa/playwright.config.ts`, `qa/e2e/`) testing all user-facing storefront and admin journeys in Chromium.
   - **Automatic Post-Test Cleanup**: Configured `posttest:e2e` hook (`qa/scripts/clean-reports.js`) that automatically purges all `test-results/` and `playwright-report/` directories after every test run.
   - **API & Concurrency Testing**: Dedicated Go testing suite in `qa/` (`qa/e2e_api_test.go` and `qa/main.go`) verifying atomic `SELECT FOR UPDATE` overselling prevention.
-- **Infrastructure & CI/CD**: Multi-stage Dockerfiles, Docker Compose (`mysql` + `backend` + `frontend`), and GitHub Actions CI/CD pipeline (`.github/workflows/ci-cd.yml`).
+- **Infrastructure & CI/CD**: Multi-stage Dockerfiles, Docker Compose (`mysql` + `backend` + `ai-service` + `frontend`), and GitHub Actions CI/CD pipeline (`.github/workflows/ci-cd.yml`).
 
 ---
 
@@ -57,51 +58,23 @@ Run tests from project root:
 
 | Suite | Runner | Verification Scope | Status |
 | :--- | :--- | :--- | :--- |
-| **Storefront Browsing & Infinite Scroll** | Playwright (Chromium) | Homepage title, infinite scrolling, 8 category filters, and pure FTS search across 100 products | ✅ PASS |
+| **Storefront Browsing & Semantic Toggle** | Playwright (Chromium) | Homepage title, infinite scrolling, AI semantic toggle, 8 category filters, and search | ✅ PASS |
 | **PDP Modal** | Playwright (Chromium) | Product detail modal opening, quantity counter adjustments | ✅ PASS |
 | **Cart Drawer** | Playwright (Chromium) | Item addition, badge count, drawer open, quantity +/- controls | ✅ PASS |
 | **Shopper Checkout** | Playwright (Chromium) | 1-Click Shopper Demo auth, checkout form submission, order history redirect | ✅ PASS |
 | **Admin Control & IDR**| Playwright (Chromium) | 1-Click Admin Demo login, direct admin view locking, Rupiah KPIs, product CRUD, orders, and CRM | ✅ PASS |
 | **API & Concurrency** | Go test (`qa/`) | 10 concurrent requests on 1 unit inventory, verifying zero overselling with atomic locks | ✅ PASS |
 
-**Result**: All Playwright browser tests and Go integration suites pass with 100% success rate, followed by automatic cleanup of all report files.
-
 ---
 
-## ⚙️ 4. Environment Configurations
-
-### Backend (`backend/.env`):
-- `PORT=8080`
-- `ENVIRONMENT=development`
-- `DB_HOST=127.0.0.1` (or `mysql` in Docker)
-- `DB_PORT=3306`
-- `DB_USER=root`
-- `DB_PASSWORD=rootpassword`
-- `DB_NAME=gocommerce_db`
-- `JWT_SECRET=super-secret-tirenn-jwt-key-2026`
-- `JWT_EXPIRE_HOURS=24`
-
-### Frontend (`frontend/.env`):
-- `VITE_API_BASE_URL=http://localhost:8080/api/v1`
-- `VITE_BACKEND_URL=http://localhost:8080`
-
----
-
-## 🔑 5. Default Seeded Credentials
-
-| Role | Name | Email | Password | Access Level |
-| :--- | :--- | :--- | :--- | :--- |
-| **👑 Admin (Merchant)** | `Tirenn Merchant Admin` | `admin@gocommerce.com` | `Admin@123` | Exclusive Back-Office Access (Dashboard, Products, Orders, CRM) |
-| **🛍️ Shopper (Customer)** | `Budi Santoso` | `shopper@gocommerce.com` | `Shopper@123` | Storefront, Cart, Checkout, Order History |
-| **⭐ Customer 2** | `Siti Rahmawati` | `sarah.jenkins@example.com` | `Sarah@123` | Storefront, Cart, Checkout, Order History |
-
----
-
-## 💻 6. Makefile Command Cheat Sheet
+## 💻 4. Makefile Command Cheat Sheet
 
 ```bash
 # Automated Browser Testing (Playwright from qa/ with auto report purge)
 make test-e2e                          # Run all Playwright E2E browser tests
+
+# Python AI Semantic Search Microservice
+make ai-run                            # Start FastAPI AI service on :8000
 
 # Database Migrations (Goose)
 make migrate-create name=add_feature   # Create new migration file
@@ -115,7 +88,7 @@ make qa-run                            # Run interactive QA automation runner
 make qa-test                           # Run Go testing suite in qa/
 
 # Docker Compose Services
-make docker-up                         # Launch MySQL, Backend, and Frontend
+make docker-up                         # Launch MySQL, AI Service, Backend, and Frontend
 make docker-down                       # Stop all services
 docker compose down -v --rmi all       # Stop and delete containers, images, and volumes
 

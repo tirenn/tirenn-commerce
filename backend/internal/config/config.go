@@ -10,8 +10,9 @@ import (
 
 // ServerConfig stores HTTP server configurations
 type ServerConfig struct {
-	Port        string `mapstructure:"PORT"`
-	Environment string `mapstructure:"ENVIRONMENT"`
+	Port         string `mapstructure:"PORT"`
+	Environment  string `mapstructure:"ENVIRONMENT"`
+	AIServiceURL string `mapstructure:"AI_SERVICE_URL"`
 }
 
 // DatabaseConfig stores MySQL database connection configurations
@@ -50,6 +51,7 @@ type Config struct {
 	// Flat field accessors for convenience
 	Port           string
 	Environment    string
+	AIServiceURL   string
 	DBHost         string
 	DBPort         string
 	DBUser         string
@@ -66,6 +68,7 @@ func LoadConfig(paths ...string) *Config {
 	// 1. Set Defaults
 	v.SetDefault("PORT", "8080")
 	v.SetDefault("ENVIRONMENT", "development")
+	v.SetDefault("AI_SERVICE_URL", "http://localhost:8000")
 	v.SetDefault("DB_HOST", "127.0.0.1")
 	v.SetDefault("DB_PORT", "3306")
 	v.SetDefault("DB_USER", "root")
@@ -110,6 +113,7 @@ func LoadConfig(paths ...string) *Config {
 	// Populate flat convenience fields
 	cfg.Port = v.GetString("PORT")
 	cfg.Environment = v.GetString("ENVIRONMENT")
+	cfg.AIServiceURL = v.GetString("AI_SERVICE_URL")
 	cfg.DBHost = v.GetString("DB_HOST")
 	cfg.DBPort = v.GetString("DB_PORT")
 	cfg.DBUser = v.GetString("DB_USER")
@@ -121,6 +125,7 @@ func LoadConfig(paths ...string) *Config {
 	// Populate nested structs
 	cfg.Server.Port = cfg.Port
 	cfg.Server.Environment = cfg.Environment
+	cfg.Server.AIServiceURL = cfg.AIServiceURL
 	cfg.Database.Host = cfg.DBHost
 	cfg.Database.Port = cfg.DBPort
 	cfg.Database.User = cfg.DBUser

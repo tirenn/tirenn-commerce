@@ -2,7 +2,7 @@
 # Tirenn Commerce Root Makefile
 # ==============================================================================
 
-.PHONY: help migrate-create migrate-up migrate-down migrate-status migrate-reset backend-run frontend-run docker-up docker-down qa-test qa-run test-e2e
+.PHONY: help migrate-create migrate-up migrate-down migrate-status migrate-reset backend-run frontend-run ai-run docker-up docker-down qa-test qa-run test-e2e
 
 help:
 	@echo "🛍️ Tirenn Commerce Project Commands:"
@@ -20,12 +20,13 @@ help:
 	@echo "    make qa-test                     - Run QA integration test suite"
 	@echo ""
 	@echo "  Docker Compose:"
-	@echo "    make docker-up                   - Start MySQL, Backend, and Frontend"
+	@echo "    make docker-up                   - Start MySQL, AI Service, Backend, and Frontend"
 	@echo "    make docker-down                 - Stop all services"
 	@echo ""
 	@echo "  Local Development:"
-	@echo "    make backend-run                 - Start Go backend"
-	@echo "    make frontend-run                - Start React frontend"
+	@echo "    make backend-run                 - Start Go backend on :8080"
+	@echo "    make frontend-run                - Start React frontend on :3000"
+	@echo "    make ai-run                      - Start Python AI Semantic Search service on :8000"
 
 migrate-create:
 	@$(MAKE) -C backend migrate-create name=$(name)
@@ -47,6 +48,9 @@ backend-run:
 
 frontend-run:
 	cd frontend && npm run dev
+
+ai-run:
+	cd ai-service && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 test-e2e:
 	cd qa && npm run test:e2e

@@ -23,6 +23,40 @@ services:
     networks:
       - tirenn-net
 
+  # Ollama LLM Container (Qwen 2.5 for Conversational AI Shopper)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: tirenn-ollama
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - tirenn-net
+
+  # Python AI Semantic Search & Conversational Shopper Service
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: tirenn-ai-service
+    restart: always
+    environment:
+      PORT: 8000
+      ENVIRONMENT: production
+      BACKEND_API_URL: http://backend:8080/api/v1
+      OLLAMA_BASE_URL: http://ollama:11434
+      LLM_MODEL: qwen2.5:3b
+    ports:
+      - "8000:8000"
+    volumes:
+      - ai_vector_data:/app/data
+    depends_on:
+      - ollama
+    networks:
+      - tirenn-net
+
   # Golang Backend Service
   backend:
     build:
@@ -33,6 +67,7 @@ services:
     environment:
       PORT: 8080
       ENVIRONMENT: production
+      AI_SERVICE_URL: http://ai-service:8000
       DB_HOST: mysql
       DB_PORT: 3306
       DB_USER: gouser
@@ -45,10 +80,12 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      ai-service:
+        condition: service_started
     networks:
       - tirenn-net
 
-  # Svelte Frontend Service
+  # React Frontend Service
   frontend:
     build:
       context: ./frontend
@@ -65,10 +102,69 @@ services:
     networks:
       - tirenn-net
 
+  # ----------------------------------------------------------------------------
+  # Centralized Observability & Logging Stack (Loki + Promtail + Grafana)
+  # ----------------------------------------------------------------------------
+
+  # Centralized Log Storage Engine (Grafana Loki)
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: tirenn-loki
+    restart: always
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./logging/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    networks:
+      - tirenn-net
+
+  # Log Collector & Docker Shipper (Grafana Promtail)
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: tirenn-promtail
+    restart: always
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./logging/promtail-config.yml:/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - tirenn-net
+
+  # Unified Log Visualization Dashboard (Grafana on :3001)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: tirenn-grafana
+    restart: always
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./logging/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    depends_on:
+      - loki
+    networks:
+      - tirenn-net
+
 networks:
   tirenn-net:
     driver: bridge
 
 volumes:
   mysql_data:
+    driver: local
+  ai_vector_data:
+    driver: local
+  ollama_models:
+    driver: local
+  loki_data:
+    driver: local
+  grafana_data:
     driver: local

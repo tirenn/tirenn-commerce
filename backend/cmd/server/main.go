@@ -29,16 +29,17 @@ func main() {
 		log.Fatalf("Fatal: Database initialization failed: %v", err)
 	}
 
-	// 3. Dependency Injection: Repositories
+	// 3. Dependency Injection: Repositories & Clients
 	authRepo := auth.NewRepository(db)
 	productRepo := product.NewRepository(db)
 	orderRepo := order.NewRepository(db)
 	customerRepo := customer.NewRepository(db)
 	dashboardRepo := dashboard.NewRepository(db)
+	aiClient := product.NewAIClient(cfg.AIServiceURL)
 
 	// 4. Dependency Injection: UseCases
 	authUseCase := auth.NewUseCase(authRepo, cfg)
-	productUseCase := product.NewUseCase(productRepo)
+	productUseCase := product.NewUseCase(productRepo, aiClient)
 	orderUseCase := order.NewUseCase(orderRepo)
 	customerUseCase := customer.NewUseCase(customerRepo)
 	dashboardUseCase := dashboard.NewUseCase(dashboardRepo)
@@ -65,7 +66,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("💥 GoCommerce Comic Backend Server running on port %s 🚀\n", cfg.Port)
+		log.Printf("💥 Tirenn Commerce Backend Server running on port %s 🚀\n", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server Listen error: %s\n", err)
 		}
@@ -75,7 +76,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutting down GoCommerce server gracefully...")
+	log.Println("Shutting down Tirenn Commerce server gracefully...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -83,5 +84,5 @@ func main() {
 		log.Fatal("Server forced to shutdown:", err)
 	}
 
-	log.Println("GoCommerce server exited cleanly.")
+	log.Println("Tirenn Commerce server exited cleanly.")
 }

@@ -34,6 +34,7 @@ func SetupRouter(cfg *config.Config, handlers *Handlers) *gin.Engine {
 
 	// Global Middlewares
 	r.Use(middleware.SetupCORS())
+	r.Use(middleware.StructuredLogger())
 
 	// Health Check Endpoint
 	r.GET("/healthz", func(c *gin.Context) {

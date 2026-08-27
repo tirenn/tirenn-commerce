@@ -29,6 +29,15 @@ func (m *mockProductRepo) FindByID(ctx context.Context, id uint) (*Product, erro
 	}
 	return nil, nil
 }
+func (m *mockProductRepo) FindByIDs(ctx context.Context, ids []uint) ([]Product, error) {
+	var list []Product
+	for _, id := range ids {
+		if p, ok := m.products[id]; ok {
+			list = append(list, *p)
+		}
+	}
+	return list, nil
+}
 func (m *mockProductRepo) FindBySlug(ctx context.Context, slug string) (*Product, error) {
 	for _, p := range m.products {
 		if p.Slug == slug {
@@ -44,6 +53,13 @@ func (m *mockProductRepo) Update(ctx context.Context, p *Product) error {
 func (m *mockProductRepo) Delete(ctx context.Context, id uint) error {
 	delete(m.products, id)
 	return nil
+}
+func (m *mockProductRepo) ListAll(ctx context.Context) ([]Product, error) {
+	var list []Product
+	for _, p := range m.products {
+		list = append(list, *p)
+	}
+	return list, nil
 }
 func (m *mockProductRepo) List(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error) {
 	var list []Product
@@ -91,13 +107,13 @@ func (m *mockProductRepo) FindCategoryBySlug(ctx context.Context, slug string) (
 
 func TestProductUseCase_AdjustStock(t *testing.T) {
 	repo := newMockProductRepo()
-	uc := NewUseCase(repo)
+	uc := NewUseCase(repo, nil)
 
 	// Setup initial product
 	p := &Product{
 		ID:            1,
-		Name:          "Batman Comic #1",
-		Price:         9.99,
+		Name:          "Headphone Nirkabel AuraPro",
+		Price:         1499000,
 		StockQuantity: 10,
 	}
 	repo.products[1] = p

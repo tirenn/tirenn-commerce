@@ -14,6 +14,7 @@ import { CheckoutModal } from './components/CheckoutModal';
 import { AuthModal } from './components/AuthModal';
 import { OrderHistory } from './components/OrderHistory';
 import { Footer } from './components/Footer';
+import { AIChatModal } from './components/AIChatModal';
 
 // Admin Components
 import { AdminDashboard } from './components/admin/AdminDashboard';
@@ -54,16 +55,18 @@ export const App: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
 
-  // Filters & Search
+  // Filters, Search & AI Semantic Search
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState(0);
   const [selectedSort, setSelectedSort] = useState('newest');
   const [onlyInStock, setOnlyInStock] = useState(false);
+  const [isSemantic, setIsSemantic] = useState(false);
 
   // Modals
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Sentinel Ref for IntersectionObserver
@@ -93,6 +96,7 @@ export const App: React.FC = () => {
       try {
         const params = new URLSearchParams();
         if (searchTerm) params.append('search', searchTerm);
+        if (isSemantic) params.append('semantic', 'true');
         if (selectedCategoryId > 0) params.append('category_id', selectedCategoryId.toString());
         if (selectedSort) params.append('sort', selectedSort);
         if (onlyInStock) params.append('in_stock', 'true');
@@ -126,7 +130,7 @@ export const App: React.FC = () => {
         setError(err?.message || 'Network error occurred while fetching products');
       }
     },
-    [searchTerm, selectedCategoryId, selectedSort, onlyInStock]
+    [searchTerm, isSemantic, selectedCategoryId, selectedSort, onlyInStock]
   );
 
   useEffect(() => {
@@ -182,11 +186,12 @@ export const App: React.FC = () => {
     setSelectedCategoryId(0);
     setSelectedSort('newest');
     setOnlyInStock(false);
+    setIsSemantic(false);
     setCurrentPage(1);
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-slate-50 text-slate-900">
+    <div className="min-h-screen flex flex-col justify-between bg-slate-50 text-slate-900 relative">
       {/* Navbar */}
       <Navbar
         currentView={currentView}
@@ -221,10 +226,12 @@ export const App: React.FC = () => {
                 selectedCategoryId={selectedCategoryId}
                 selectedSort={selectedSort}
                 onlyInStock={onlyInStock}
+                isSemantic={isSemantic}
                 totalProductsCount={totalProducts}
                 onSelectCategory={setSelectedCategoryId}
                 onSelectSort={setSelectedSort}
                 onToggleInStock={setOnlyInStock}
+                onToggleSemantic={setIsSemantic}
                 onResetFilters={handleResetFilters}
               />
 
@@ -292,6 +299,18 @@ export const App: React.FC = () => {
       {/* Footer */}
       {!isAdmin && <Footer onSelectCategory={setSelectedCategoryId} onSelectView={setCurrentView} />}
 
+      {/* Floating AI Shopper Button (Storefront Only) */}
+      {!isAdmin && (
+        <button
+          data-testid="ai-shopper-floating-btn"
+          onClick={() => setIsAIChatOpen(true)}
+          className="fixed bottom-6 right-6 z-40 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-3 px-4 rounded-full shadow-lg flex items-center gap-2 transition-transform hover:scale-105 cursor-pointer border-2 border-white ring-4 ring-purple-300/40"
+        >
+          <span className="text-base animate-bounce">🤖</span>
+          <span>Tanya AI Shopper</span>
+        </button>
+      )}
+
       {/* Drawers & Modals (Storefront Only) */}
       {!isAdmin && (
         <>
@@ -312,6 +331,11 @@ export const App: React.FC = () => {
             product={selectedProduct}
             onClose={() => setSelectedProduct(null)}
             onDirectCheckout={() => setIsCheckoutOpen(true)}
+          />
+
+          <AIChatModal
+            isOpen={isAIChatOpen}
+            onClose={() => setIsAIChatOpen(false)}
           />
         </>
       )}

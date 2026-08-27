@@ -1,6 +1,15 @@
 # Dependencies
 node_modules/
 vendor/
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
 
 # Binaries & Builds
 dist/
@@ -11,9 +20,15 @@ bin/
 *.so
 *.dylib
 
+# Local Data & Vector Storages
+data/
+qdrant_storage/
+
 # Environment Variables
 .env
+*.env
 !.env.example
+!*.env.example
 
 # Playwright Test Reports & Results
 playwright-report/
