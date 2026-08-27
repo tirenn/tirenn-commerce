@@ -9,7 +9,7 @@
 **Tirenn Commerce** is a full-stack, production-grade **modern e-commerce marketplace and department store platform** designed with an ultra-simple, minimal, and high-converting UI:
 
 - **Branding**: **Tirenn Commerce** (`tirenn commerce`) - The Modern Online Marketplace.
-- **Security & Config**: Zero hardcoded environment variables or database credentials in Makefiles. All sensitive configuration loaded strictly at runtime via Viper from `.env`.
+- **Security & Git Hygiene**: Zero hardcoded credentials in Makefiles. `.gitignore` configured to ignore `.env`, binaries, test reports, and AI assistant artifacts (`.agents/`, `.gemini/`, `.claude/`, `.cursor/`).
 - **Currency**: **Indonesian Rupiah (IDR / Rp)** formatted across all storefront and admin operations (e.g. `Rp 2.249.850`).
 - **Role Isolation**:
   - **👑 Admin**: When logging in as `ADMIN`, the user is strictly and exclusively routed to the Merchant Console (`admin-dashboard`, `admin-products`, `admin-orders`, `admin-customers`). All non-admin storefront elements (cart, catalog filters, banners) are hidden from Admin.
@@ -83,10 +83,6 @@ Run tests from project root:
 
 ```text
 ai-commerce/
-├── .agents/
-│   └── skills/
-│       ├── senior-ai-engineer/SKILL.md  # Senior AI Engineer skill guide
-│       └── qa-engineer/SKILL.md         # Senior QA Automation Engineer skill guide
 ├── .github/
 │   └── workflows/
 │       └── ci-cd.yml                    # Automated GitHub Actions CI/CD Pipeline
@@ -103,7 +99,7 @@ ai-commerce/
 │   │   ├── utils/                       # JWT generation/validation, bcrypt hashing, JSON response helpers
 │   │   └── domain/                      # Clean Architecture per domain (entity, repo, usecase, handler)
 │   ├── Dockerfile                       # Multi-stage Docker build (golang:alpine -> alpine:3.19)
-│   ├── Makefile                         # Backend Makefile (migrations, build, dev, test) - CLEAN OF HARDCODED ENV
+│   ├── Makefile                         # Backend Makefile (migrations, build, dev, test)
 │   ├── go.mod                           # Go module definition
 │   └── .env.example                     # Environment variables template
 ├── frontend/
@@ -153,7 +149,8 @@ ai-commerce/
 │   ├── API_DOCUMENTATION.md             # Complete REST API specification & integration guide
 │   ├── openapi.yaml                     # Standard OpenAPI 3.0.3 specification
 │   └── PRD.md                           # Formal Product Requirement Document
-├── Makefile                             # Root Makefile with test-e2e, docker, migrate commands - CLEAN OF HARDCODED ENV
+├── .gitignore                           # Excludes node_modules, binaries, .env, test-results, .agents/
+├── Makefile                             # Root Makefile with test-e2e, docker, migrate commands
 ├── docker-compose.yml                   # Docker Compose orchestrating MySQL 8.0, Backend, Frontend
 ├── PROJECT_CONTEXT.md                   # THIS MASTER CONTEXT FILE
 └── README.md                            # Public repository README

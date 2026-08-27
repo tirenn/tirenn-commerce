@@ -21,6 +21,14 @@ test-results/
 blob-report/
 playwright/.cache/
 
+# AI Agents & Assistants
+.agents/
+.agent/
+agent/
+.gemini/
+.claude/
+.cursor/
+
 # System / IDE
 .DS_Store
 Thumbs.db
