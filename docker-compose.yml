@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: tirenn-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: gocommerce_db
+      MYSQL_USER: gouser
+      MYSQL_PASSWORD: gopassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tirenn-net
+
+  # Golang Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tirenn-backend
+    restart: always
+    environment:
+      PORT: 8080
+      ENVIRONMENT: production
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: gouser
+      DB_PASSWORD: gopassword
+      DB_NAME: gocommerce_db
+      JWT_SECRET: super-secret-tirenn-jwt-key-2026
+      JWT_EXPIRE_HOURS: 24
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - tirenn-net
+
+  # Svelte Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=http://localhost:8080/api/v1
+        - VITE_BACKEND_URL=http://localhost:8080
+    container_name: tirenn-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - tirenn-net
+
+networks:
+  tirenn-net:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local

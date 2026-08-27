@@ -1,0 +1,19 @@
+{
+  "name": "tirenn-commerce-qa",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Automated Playwright E2E UI and Go API QA Suite for Tirenn Commerce",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "posttest:e2e": "node scripts/clean-reports.js",
+    "clean": "node scripts/clean-reports.js",
+    "test:api": "go test -v ./...",
+    "test:all": "npm run test:e2e && npm run test:api"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@types/node": "^22.13.4",
+    "typescript": "~5.7.3"
+  }
+}

@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Binaries & Builds
+dist/
+build/
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Environment Variables
+.env
+!.env.example
+
+# Playwright Test Reports & Results
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# System / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log

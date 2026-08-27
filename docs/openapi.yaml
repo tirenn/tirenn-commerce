@@ -1,0 +1,215 @@
+openapi: 3.0.3
+info:
+  title: Tirenn Commerce REST API
+  description: High-performance E-Commerce & Department Store REST API backend powered by Go, Gin, GORM, and MySQL.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Development Server
+paths:
+  /healthz:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: API is online and healthy
+
+  /auth/register:
+    post:
+      summary: Register customer account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name: { type: string, example: "Alex Rivera" }
+                email: { type: string, example: "alex@example.com" }
+                password: { type: string, example: "SecurePass123" }
+                phone: { type: string, example: "+1-555-019-2834" }
+                address: { type: string, example: "742 Evergreen Terrace" }
+      responses:
+        '201':
+          description: Customer registered successfully
+
+  /auth/login:
+    post:
+      summary: User login (Admin or Customer)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, example: "shopper@gocommerce.com" }
+                password: { type: string, example: "Shopper@123" }
+      responses:
+        '200':
+          description: Authenticated successfully with JWT token
+
+  /auth/me:
+    get:
+      summary: Get current authenticated user profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile
+
+  /products:
+    get:
+      summary: List and filter products
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: category_id
+          in: query
+          schema: { type: integer }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [newest, price_asc, price_desc, name_asc]
+        - name: in_stock
+          in: query
+          schema: { type: boolean }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 12 }
+      responses:
+        '200':
+          description: Paginated product list
+
+  /products/{id}:
+    get:
+      summary: Get product by ID or Slug
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Product details
+        '404':
+          description: Product not found
+
+  /categories:
+    get:
+      summary: List all categories
+      responses:
+        '200':
+          description: Categories list
+
+  /orders/checkout:
+    post:
+      summary: Transactional checkout with row-level locking
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items, shipping_name, shipping_phone, shipping_address]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [product_id, quantity]
+                    properties:
+                      product_id: { type: integer }
+                      quantity: { type: integer }
+                shipping_name: { type: string }
+                shipping_phone: { type: string }
+                shipping_address: { type: string }
+                payment_method: { type: string, enum: [CARD, BANK_TRANSFER, CASH_ON_DELIVERY] }
+                notes: { type: string }
+      responses:
+        '201':
+          description: Order placed successfully
+        '400':
+          description: Out of stock or validation error
+
+  /orders/my-orders:
+    get:
+      summary: List current user orders
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User orders
+
+  /admin/dashboard:
+    get:
+      summary: Executive sales KPIs, revenue velocity, low stock alerts (Admin only)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Merchant Dashboard metrics
+
+  /admin/products/{id}/adjust-stock:
+    post:
+      summary: Adjust product stock with audit trail (Admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, amount, reason]
+              properties:
+                type: { type: string, enum: [ADD, SUBTRACT, SET] }
+                amount: { type: integer }
+                reason: { type: string }
+      responses:
+        '200':
+          description: Stock adjusted successfully
+
+  /admin/orders/{id}/status:
+    patch:
+      summary: Update order status (Admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [PAID, PROCESSING, SHIPPED, COMPLETED, CANCELLED] }
+      responses:
+        '200':
+          description: Order status updated
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
