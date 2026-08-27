@@ -2,6 +2,7 @@ package product
 
 import (
 	"context"
+	"strings"
 
 	"gorm.io/gorm"
 )
@@ -64,35 +65,68 @@ func (r *repository) Delete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&Product{}, id).Error
 }
 
+// formatBooleanFullText parses user search terms into MySQL Full-Text boolean search syntax
+// e.g. "wireless headphones" -> "+wireless* +headphones*", "TECH-AP-001" -> "+TECH* +AP* +001*"
+func formatBooleanFullText(input string) string {
+	replacer := strings.NewReplacer("-", " ", "_", " ", "/", " ", ".", " ")
+	cleanedInput := replacer.Replace(input)
+	words := strings.Fields(cleanedInput)
+	if len(words) == 0 {
+		return ""
+	}
+	var formatted []string
+	for _, w := range words {
+		clean := strings.Map(func(r rune) rune {
+			if strings.ContainsRune("+-~*<>\"()@", r) {
+				return -1
+			}
+			return r
+		}, w)
+		if len(clean) > 0 {
+			formatted = append(formatted, "+"+clean+"*")
+		}
+	}
+	return strings.Join(formatted, " ")
+}
+
 func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error) {
 	var products []Product
 	var total int64
 
-	query := r.db.WithContext(ctx).Model(&Product{}).Preload("Category")
+	query := r.db.WithContext(ctx).Model(&Product{}).
+		Joins("LEFT JOIN categories ON categories.id = products.category_id").
+		Preload("Category")
 
 	if !filter.IsAdmin {
-		query = query.Where("is_active = ?", true)
+		query = query.Where("products.is_active = ?", true)
 	}
 
+	// Pure Full-Text Search across Products (name, description, sku) and Categories (name, description)
 	if filter.Search != "" {
-		searchTerm := "%" + filter.Search + "%"
-		query = query.Where("name LIKE ? OR sku LIKE ? OR description LIKE ?", searchTerm, searchTerm, searchTerm)
+		cleanSearch := strings.TrimSpace(filter.Search)
+		ftsQuery := formatBooleanFullText(cleanSearch)
+		if ftsQuery != "" {
+			query = query.Where(
+				"MATCH(products.name, products.description, products.sku) AGAINST (? IN BOOLEAN MODE) OR MATCH(categories.name, categories.description) AGAINST (? IN BOOLEAN MODE)",
+				ftsQuery, ftsQuery,
+			)
+		}
 	}
 
 	if filter.CategoryID > 0 {
-		query = query.Where("category_id = ?", filter.CategoryID)
+		query = query.Where("products.category_id = ?", filter.CategoryID)
 	}
 
 	if filter.MinPrice > 0 {
-		query = query.Where("price >= ?", filter.MinPrice)
+		query = query.Where("products.price >= ?", filter.MinPrice)
 	}
 
 	if filter.MaxPrice > 0 {
-		query = query.Where("price <= ?", filter.MaxPrice)
+		query = query.Where("products.price <= ?", filter.MaxPrice)
 	}
 
 	if filter.InStock != nil && *filter.InStock {
-		query = query.Where("stock_quantity > 0")
+		query = query.Where("products.stock_quantity > 0")
 	}
 
 	// Count total matching
@@ -103,15 +137,15 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 	// Sorting
 	switch filter.Sort {
 	case "price_asc":
-		query = query.Order("price ASC")
+		query = query.Order("products.price ASC")
 	case "price_desc":
-		query = query.Order("price DESC")
+		query = query.Order("products.price DESC")
 	case "name_asc":
-		query = query.Order("name ASC")
+		query = query.Order("products.name ASC")
 	case "rating_desc":
-		query = query.Order("rating DESC")
+		query = query.Order("products.rating DESC")
 	default:
-		query = query.Order("created_at DESC")
+		query = query.Order("products.created_at DESC")
 	}
 
 	// Pagination

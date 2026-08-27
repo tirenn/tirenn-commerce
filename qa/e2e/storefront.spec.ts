@@ -20,11 +20,11 @@ test.describe('Storefront User-Facing Functionality', () => {
   });
 
   test('2. Should filter catalog by department category', async ({ page }) => {
-    const electronicsTab = page.locator('button:has-text("Electronics")').first();
+    const electronicsTab = page.locator('button:has-text("Elektronik")').first();
     await electronicsTab.click();
 
     await page.locator('[data-testid^="product-card-"]').first().waitFor();
-    await expect(page.locator('text=Electronics').first()).toBeVisible();
+    await expect(page.locator('text=Elektronik').first()).toBeVisible();
 
     // Reset filter
     await page.getByTestId('category-tab-all').click();
@@ -33,7 +33,7 @@ test.describe('Storefront User-Facing Functionality', () => {
 
   test('3. Should search for products using real-time search input', async ({ page }) => {
     const searchInput = page.getByTestId('search-input');
-    await searchInput.fill('Headphones');
+    await searchInput.fill('AuraPro');
 
     await expect(page.locator('text=AuraPro').first()).toBeVisible({ timeout: 5000 });
 

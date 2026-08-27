@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import { StockAdjustmentModal } from './StockAdjustmentModal';
+import { Pagination } from '../Pagination';
 import { formatRupiah } from '../../utils/format';
 import type { Product, Category } from '../../types';
+
+const ADMIN_PRODUCTS_PER_PAGE = 15;
 
 export const ProductManagement: React.FC = () => {
   const { showToast } = useToast();
@@ -12,6 +15,9 @@ export const ProductManagement: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [selectedProductForStock, setSelectedProductForStock] = useState<Product | null>(null);
 
   // Create / Edit modal state
@@ -31,14 +37,21 @@ export const ProductManagement: React.FC = () => {
 
   const loadData = async () => {
     setLoading(true);
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    params.append('page', currentPage.toString());
+    params.append('limit', ADMIN_PRODUCTS_PER_PAGE.toString());
+
     const [prodRes, catRes] = await Promise.all([
-      apiRequest<Product[]>(`/admin/products?limit=50&search=${search}`),
+      apiRequest<Product[]>(`/admin/products?${params.toString()}`),
       apiRequest<Category[]>('/categories'),
     ]);
     setLoading(false);
 
     if (prodRes.success && Array.isArray(prodRes.data)) {
       setProducts(prodRes.data);
+      setTotalProducts(prodRes.meta?.total_rows || prodRes.data.length);
+      setTotalPages(prodRes.meta?.total_pages || 1);
     }
     if (catRes.success && Array.isArray(catRes.data)) {
       setCategories(catRes.data);
@@ -46,8 +59,12 @@ export const ProductManagement: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
+    setCurrentPage(1);
   }, [search]);
+
+  useEffect(() => {
+    loadData();
+  }, [search, currentPage]);
 
   const openCreateModal = () => {
     setEditingProduct(null);
@@ -255,6 +272,15 @@ export const ProductManagement: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Admin Pagination Controls */}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={totalProducts}
+        itemsPerPage={ADMIN_PRODUCTS_PER_PAGE}
+        onPageChange={(page) => setCurrentPage(page)}
+      />
 
       {/* Stock Adjustment Modal */}
       {selectedProductForStock && (

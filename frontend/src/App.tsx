@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiRequest } from './services/api';
 import { useAuth } from './context/AuthContext';
 import type { Product, Category, AppView } from './types';
@@ -21,6 +21,8 @@ import { ProductManagement } from './components/admin/ProductManagement';
 import { OrderManagement } from './components/admin/OrderManagement';
 import { CustomerManagement } from './components/admin/CustomerManagement';
 
+const PRODUCTS_PER_PAGE = 12;
+
 export const App: React.FC = () => {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'ADMIN';
@@ -42,11 +44,14 @@ export const App: React.FC = () => {
     }
   }, [currentUser]);
 
-  // Products & Categories
+  // Products, Infinite Scrolling & Categories
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [totalProducts, setTotalProducts] = useState(0);
-  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
 
   // Filters & Search
@@ -61,6 +66,9 @@ export const App: React.FC = () => {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  // Sentinel Ref for IntersectionObserver
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
   const loadCategories = async () => {
     try {
       const res = await apiRequest<Category[]>('/categories');
@@ -72,32 +80,54 @@ export const App: React.FC = () => {
     }
   };
 
-  const loadProducts = async () => {
-    setLoadingProducts(true);
-    setError('');
-
-    try {
-      const params = new URLSearchParams();
-      if (searchTerm) params.append('search', searchTerm);
-      if (selectedCategoryId > 0) params.append('category_id', selectedCategoryId.toString());
-      if (selectedSort) params.append('sort', selectedSort);
-      if (onlyInStock) params.append('in_stock', 'true');
-      params.append('limit', '50');
-
-      const res = await apiRequest<Product[]>(`/products?${params.toString()}`);
-      setLoadingProducts(false);
-
-      if (res.success && Array.isArray(res.data)) {
-        setProducts(res.data);
-        setTotalProducts(res.meta?.total_rows || res.data.length);
+  // Fetch products function (supports initial replace or append for infinite scrolling)
+  const fetchProducts = useCallback(
+    async (pageToFetch: number, isInitial: boolean = false) => {
+      if (isInitial) {
+        setLoadingInitial(true);
       } else {
-        setError(res.error || 'Failed to load products');
+        setLoadingMore(true);
       }
-    } catch (err: any) {
-      setLoadingProducts(false);
-      setError(err?.message || 'Network error occurred while fetching products');
-    }
-  };
+      setError('');
+
+      try {
+        const params = new URLSearchParams();
+        if (searchTerm) params.append('search', searchTerm);
+        if (selectedCategoryId > 0) params.append('category_id', selectedCategoryId.toString());
+        if (selectedSort) params.append('sort', selectedSort);
+        if (onlyInStock) params.append('in_stock', 'true');
+        params.append('page', pageToFetch.toString());
+        params.append('limit', PRODUCTS_PER_PAGE.toString());
+
+        const res = await apiRequest<Product[]>(`/products?${params.toString()}`);
+        setLoadingInitial(false);
+        setLoadingMore(false);
+
+        if (res.success && Array.isArray(res.data)) {
+          const incoming = res.data;
+          if (isInitial || pageToFetch === 1) {
+            setProducts(incoming);
+          } else {
+            // Append new products, preventing any duplicate IDs
+            setProducts((prev) => {
+              const existingIds = new Set(prev.map((p) => p.id));
+              const fresh = incoming.filter((p) => !existingIds.has(p.id));
+              return [...prev, ...fresh];
+            });
+          }
+          setTotalProducts(res.meta?.total_rows || incoming.length);
+          setTotalPages(res.meta?.total_pages || 1);
+        } else {
+          setError(res.error || 'Failed to load products');
+        }
+      } catch (err: any) {
+        setLoadingInitial(false);
+        setLoadingMore(false);
+        setError(err?.message || 'Network error occurred while fetching products');
+      }
+    },
+    [searchTerm, selectedCategoryId, selectedSort, onlyInStock]
+  );
 
   useEffect(() => {
     if (!isAdmin) {
@@ -105,17 +135,54 @@ export const App: React.FC = () => {
     }
   }, [isAdmin]);
 
+  // When filters or search change, reset page to 1 and reload products
   useEffect(() => {
     if (!isAdmin) {
-      loadProducts();
+      setCurrentPage(1);
+      fetchProducts(1, true);
     }
-  }, [searchTerm, selectedCategoryId, selectedSort, onlyInStock, isAdmin]);
+  }, [fetchProducts, isAdmin]);
+
+  // When page increments (> 1) via scrolling, fetch and append
+  useEffect(() => {
+    if (!isAdmin && currentPage > 1) {
+      fetchProducts(currentPage, false);
+    }
+  }, [currentPage, fetchProducts, isAdmin]);
+
+  // Auto Pagination (Infinite Scrolling) via IntersectionObserver
+  useEffect(() => {
+    if (isAdmin || loadingInitial || loadingMore) return;
+    if (currentPage >= totalPages) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && !loadingMore && currentPage < totalPages) {
+          setCurrentPage((prev) => prev + 1);
+        }
+      },
+      { rootMargin: '300px' }
+    );
+
+    const currentSentinel = sentinelRef.current;
+    if (currentSentinel) {
+      observer.observe(currentSentinel);
+    }
+
+    return () => {
+      if (currentSentinel) {
+        observer.unobserve(currentSentinel);
+      }
+    };
+  }, [isAdmin, loadingInitial, loadingMore, currentPage, totalPages]);
 
   const handleResetFilters = () => {
     setSearchTerm('');
     setSelectedCategoryId(0);
     setSelectedSort('newest');
     setOnlyInStock(false);
+    setCurrentPage(1);
   };
 
   return (
@@ -161,11 +228,11 @@ export const App: React.FC = () => {
                 onResetFilters={handleResetFilters}
               />
 
-              {/* Product Grid */}
-              {loadingProducts ? (
+              {/* Initial Loading State */}
+              {loadingInitial ? (
                 <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
                   <span className="text-2xl animate-spin block mb-2">⚡</span>
-                  <span className="text-xs text-slate-600">Loading catalog...</span>
+                  <span className="text-xs text-slate-600">Memuat katalog produk...</span>
                 </div>
               ) : error ? (
                 <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl text-xs font-medium">
@@ -173,27 +240,47 @@ export const App: React.FC = () => {
                 </div>
               ) : !Array.isArray(products) || products.length === 0 ? (
                 <div className="bg-white border border-slate-200 rounded-xl p-12 text-center space-y-2">
-                  <h3 className="font-semibold text-sm text-slate-900">No matching products found</h3>
+                  <h3 className="font-semibold text-sm text-slate-900">Tidak ada produk yang cocok</h3>
                   <p className="text-xs text-slate-500">
-                    Try adjusting your search terms or filters.
+                    Coba sesuaikan kata kunci pencarian atau filter kategori Anda.
                   </p>
                   <button
                     onClick={handleResetFilters}
                     className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-1.5 px-3 rounded-lg cursor-pointer mt-2"
                   >
-                    Clear Filters
+                    Reset Filter
                   </button>
                 </div>
               ) : (
-                <div data-testid="products-grid" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                  {products.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      onSelect={(p) => setSelectedProduct(p)}
-                    />
-                  ))}
-                </div>
+                <>
+                  {/* Products Grid */}
+                  <div
+                    data-testid="products-grid"
+                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5"
+                  >
+                    {products.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onSelect={(p) => setSelectedProduct(p)}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Auto-Pagination Infinite Scroll Sentinel & Loading Indicator */}
+                  <div ref={sentinelRef} className="py-8 text-center">
+                    {loadingMore ? (
+                      <div className="inline-flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-xs text-xs font-semibold text-slate-600 animate-pulse">
+                        <span className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+                        Memuat lebih banyak produk...
+                      </div>
+                    ) : products.length >= totalProducts && totalProducts > 0 ? (
+                      <div className="text-xs text-slate-400 font-medium">
+                        ✓ Semua <span className="font-bold text-slate-600">{totalProducts}</span> produk telah ditampilkan
+                      </div>
+                    ) : null}
+                  </div>
+                </>
               )}
             </>
           ) : currentView === 'my-orders' ? (

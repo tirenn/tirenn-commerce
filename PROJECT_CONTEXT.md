@@ -9,8 +9,14 @@
 **Tirenn Commerce** is a full-stack, production-grade **modern e-commerce marketplace and department store platform** designed with an ultra-simple, minimal, and high-converting UI:
 
 - **Branding**: **Tirenn Commerce** (`tirenn commerce`) - The Modern Online Marketplace.
+- **Auto-Pagination (Infinite Scrolling)**: Native `IntersectionObserver`-based auto pagination on the Storefront. As the shopper scrolls down, subsequent pages (`12 products/batch`) are fetched and appended seamlessly with zero lag, showing animated loading spinners and completion indicators (`✓ Semua 100 produk telah ditampilkan`).
+- **Catalog & Localization**: **100 Products across 8 Categories in Bahasa Indonesia** with authentic Indonesian names, product descriptions, localized user profiles, and Indonesian Rupiah (`Rp` / `IDR`) pricing.
+- **Search Engine**: **Pure MySQL Full-Text Search (FTS)** with zero `LIKE` queries. Indexes configured across:
+  - **Products**: `idx_products_fulltext (name, description, sku)`
+  - **Categories**: `idx_categories_fulltext (name, description)`
+  - Executing: `MATCH(products.name, products.description, products.sku) AGAINST (? IN BOOLEAN MODE) OR MATCH(categories.name, categories.description) AGAINST (? IN BOOLEAN MODE)`.
 - **Security & Git Hygiene**: Zero hardcoded credentials in Makefiles. `.gitignore` configured to ignore `.env`, binaries, test reports, and AI assistant artifacts (`.agents/`, `.gemini/`, `.claude/`, `.cursor/`).
-- **Currency**: **Indonesian Rupiah (IDR / Rp)** formatted across all storefront and admin operations (e.g. `Rp 2.249.850`).
+- **Currency**: **Indonesian Rupiah (IDR / Rp)** formatted across all storefront and admin operations (e.g. `Rp 1.499.000`).
 - **Role Isolation**:
   - **👑 Admin**: When logging in as `ADMIN`, the user is strictly and exclusively routed to the Merchant Console (`admin-dashboard`, `admin-products`, `admin-orders`, `admin-customers`). All non-admin storefront elements (cart, catalog filters, banners) are hidden from Admin.
   - **🛍️ Customer / Public**: Full access to clean storefront, real-time search, cart drawer, checkout, and order history.
@@ -27,17 +33,19 @@
 
 ---
 
-## 🎨 2. Simplified Minimalist UI Design
+## 🎨 2. 100 Seeded Indonesian Products Across 8 Categories
 
-All marketing clutter, discount strike-throughs, coupon popups, and fake review badges have been removed for an ultra-clean user experience:
-
-- **Header**: Logo, clean search bar, Store tab, Orders / Admin tab, Cart with badge counter, and Sign In / Logout.
-- **Storefront**: Clean Category tabs, In-Stock filter, Price sort dropdown, and 4-Column responsive product grid.
-- **Product Card**: High-res image, title, category, clean price (`Rp XX.XXX`), stock status, and `+ Add` button.
-- **Product Detail Modal (PDP)**: Product photo, title, SKU, price (`Rp`), description, stock count, quantity counter, `Add to Cart`, and `Buy Now`.
-- **Slide-over Cart Drawer**: Clean item list with quantity increment/decrement, remove, total amount (`Rp`), and `Checkout` button.
-- **Checkout Modal**: Recipient Name, Phone, Address, Payment Method, and `Confirm Order` button.
-- **Admin Control Panel**: Real-time sales analytics, product inventory & stock adjustment modal, order fulfillment status updater, and customer CRM.
+| No | Kategori (Category) | Jumlah Produk | Contoh Produk (Sample Product) |
+| :--- | :--- | :--- | :--- |
+| 1 | **⚡ Elektronik & Gadget** | 15 Produk | Headphone Nirkabel AuraPro ANC, Smartwatch TitanFit, Keyboard ApexCraft RGB 75% |
+| 2 | **👔 Fashion Pria** | 13 Produk | Hoodie Heavyweight UrbanCraft, Jaket Windbreaker AeroFlex, Kaos Oversized 24s |
+| 3 | **👗 Fashion Wanita** | 12 Produk | Blouse Katun Linen, Celana Kulot High Waist, Cardigan Rajut Korean Style |
+| 4 | **🏡 Peralatan Rumah Tangga** | 13 Produk | Penggiling Kopi BaristaCraft, Lampu Nordic Glow, Air Fryer Digital 4.5L |
+| 5 | **🎒 Olahraga & Outdoor** | 12 Produk | Tas Ransel Nomad 35L Rolltop, Tumbler Termos 1000ml, Matras Yoga TPE |
+| 6 | **✨ Kecantikan & Perawatan** | 12 Produk | Serum Niacinamide 10%, Sunscreen Gel SPF 50+, Gentle Cleanser Ceramide |
+| 7 | **☕ Makanan & Minuman Sehat**| 12 Produk | Kopi Arabika Gayo Specialty, Madu Hutan Sumbawa, Granola Coklat Mete |
+| 8 | **📚 Buku & Alat Tulis** | 11 Produk | Jurnal Kulit Dotted A5, Pulpen Gel 0.5mm, Daily Planner Undated |
+| **Total**| **8 Kategori** | **100 Produk** | **100% Bahasa Indonesia & Real IDR Pricing** |
 
 ---
 
@@ -49,7 +57,7 @@ Run tests from project root:
 
 | Suite | Runner | Verification Scope | Status |
 | :--- | :--- | :--- | :--- |
-| **Storefront Browsing** | Playwright (Chromium) | Homepage title, category filters, and real-time search | ✅ PASS |
+| **Storefront Browsing & Infinite Scroll** | Playwright (Chromium) | Homepage title, infinite scrolling, 8 category filters, and pure FTS search across 100 products | ✅ PASS |
 | **PDP Modal** | Playwright (Chromium) | Product detail modal opening, quantity counter adjustments | ✅ PASS |
 | **Cart Drawer** | Playwright (Chromium) | Item addition, badge count, drawer open, quantity +/- controls | ✅ PASS |
 | **Shopper Checkout** | Playwright (Chromium) | 1-Click Shopper Demo auth, checkout form submission, order history redirect | ✅ PASS |
@@ -79,96 +87,17 @@ Run tests from project root:
 
 ---
 
-## 🗂️ 5. Repository Structure
+## 🔑 5. Default Seeded Credentials
 
-```text
-ai-commerce/
-├── .github/
-│   └── workflows/
-│       └── ci-cd.yml                    # Automated GitHub Actions CI/CD Pipeline
-├── backend/
-│   ├── cmd/
-│   │   ├── server/main.go               # Server lifecycle bootstrap & graceful shutdown
-│   │   └── migrate/main.go              # Dedicated Goose migration CLI runner (Viper-powered with retry loop)
-│   ├── migrations/                      # Goose SQL migration files (Up & Down)
-│   ├── internal/
-│   │   ├── config/                      # Viper environment & config loader with strongly-typed structs
-│   │   ├── database/                    # MySQL connection pooling & general retail seeder
-│   │   ├── middleware/                  # JWT auth, RBAC guards, CORS, Logger
-│   │   ├── router/                      # Dedicated separate routing tree registering all domain endpoints
-│   │   ├── utils/                       # JWT generation/validation, bcrypt hashing, JSON response helpers
-│   │   └── domain/                      # Clean Architecture per domain (entity, repo, usecase, handler)
-│   ├── Dockerfile                       # Multi-stage Docker build (golang:alpine -> alpine:3.19)
-│   ├── Makefile                         # Backend Makefile (migrations, build, dev, test)
-│   ├── go.mod                           # Go module definition
-│   └── .env.example                     # Environment variables template
-├── frontend/
-│   ├── src/
-│   │   ├── components/                  # Clean modular React components
-│   │   │   ├── admin/                   # AdminDashboard, ProductManagement, StockAdjustmentModal, OrderManagement, CustomerManagement
-│   │   │   ├── Navbar.tsx               # Top header
-│   │   │   ├── HeroBanner.tsx           # Simple banner
-│   │   │   ├── FilterBar.tsx            # Clean Category pills & sort
-│   │   │   ├── ProductCard.tsx          # Clean Product Card
-│   │   │   ├── ProductDetailModal.tsx   # Clean PDP Modal
-│   │   │   ├── CartDrawer.tsx           # Clean Cart Drawer
-│   │   │   ├── CheckoutModal.tsx        # Clean Checkout Modal
-│   │   │   ├── AuthModal.tsx            # Clean Sign In / 1-Click Demo Login
-│   │   │   ├── OrderHistory.tsx         # Customer Order History
-│   │   │   ├── Footer.tsx               # Minimal Footer
-│   │   │   └── ErrorBoundary.tsx        # React ErrorBoundary
-│   │   ├── context/                     # AuthContext, CartContext, ToastContext
-│   │   ├── services/                    # api.ts fetch client
-│   │   ├── types/                       # TypeScript interfaces
-│   │   ├── utils/                       # format.ts (Indonesian Rupiah / formatRupiah)
-│   │   ├── App.tsx                      # Main app router with role isolation
-│   │   ├── main.tsx                     # React root
-│   │   └── index.css                    # Tailwind CSS
-│   ├── .env                             # Frontend environment variables
-│   ├── .env.example                     # Frontend environment template
-│   ├── Dockerfile                       # Multi-stage Docker build (Node.js build -> Nginx Alpine)
-│   ├── nginx.conf                       # Nginx SPA router
-│   ├── package.json                     # React + Tailwind
-│   ├── tsconfig.json
-│   ├── tsconfig.app.json
-│   ├── tsconfig.node.json
-│   └── vite.config.ts                   # Vite configuration
-├── qa/
-│   ├── e2e/                             # Playwright Browser Automated E2E Tests
-│   │   ├── storefront.spec.ts           # Storefront user journey (Catalog, Search, Cart, Checkout)
-│   │   └── admin.spec.ts                # Admin control panel tests (Dashboard, Products, Orders, CRM)
-│   ├── scripts/
-│   │   └── clean-reports.js             # Automated post-test report cleaner
-│   ├── e2e_api_test.go                  # End-to-end integration and concurrency testing suite
-│   ├── main.go                          # Standalone interactive QA test runner
-│   ├── package.json                     # Playwright & TypeScript dependencies for QA with posttest hook
-│   ├── playwright.config.ts             # Playwright QA configuration
-│   ├── README.md                        # QA test matrix and instructions
-│   └── go.mod
-├── docs/
-│   ├── API_DOCUMENTATION.md             # Complete REST API specification & integration guide
-│   ├── openapi.yaml                     # Standard OpenAPI 3.0.3 specification
-│   └── PRD.md                           # Formal Product Requirement Document
-├── .gitignore                           # Excludes node_modules, binaries, .env, test-results, .agents/
-├── Makefile                             # Root Makefile with test-e2e, docker, migrate commands
-├── docker-compose.yml                   # Docker Compose orchestrating MySQL 8.0, Backend, Frontend
-├── PROJECT_CONTEXT.md                   # THIS MASTER CONTEXT FILE
-└── README.md                            # Public repository README
-```
+| Role | Name | Email | Password | Access Level |
+| :--- | :--- | :--- | :--- | :--- |
+| **👑 Admin (Merchant)** | `Tirenn Merchant Admin` | `admin@gocommerce.com` | `Admin@123` | Exclusive Back-Office Access (Dashboard, Products, Orders, CRM) |
+| **🛍️ Shopper (Customer)** | `Budi Santoso` | `shopper@gocommerce.com` | `Shopper@123` | Storefront, Cart, Checkout, Order History |
+| **⭐ Customer 2** | `Siti Rahmawati` | `sarah.jenkins@example.com` | `Sarah@123` | Storefront, Cart, Checkout, Order History |
 
 ---
 
-## 🔑 6. Default Seeded Credentials
-
-| Role | Email | Password | Access Level |
-| :--- | :--- | :--- | :--- |
-| **👑 Admin (Merchant)** | `admin@gocommerce.com` | `Admin@123` | Exclusive Back-Office Access (Dashboard, Products, Orders, CRM) |
-| **🛍️ Shopper (Customer)** | `shopper@gocommerce.com` | `Shopper@123` | Storefront, Cart, Checkout, Order History |
-| **⭐ Customer 2** | `sarah.jenkins@example.com` | `Sarah@123` | Storefront, Cart, Checkout, Order History |
-
----
-
-## 💻 7. Makefile Command Cheat Sheet
+## 💻 6. Makefile Command Cheat Sheet
 
 ```bash
 # Automated Browser Testing (Playwright from qa/ with auto report purge)
