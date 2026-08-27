@@ -9,28 +9,39 @@
 **Tirenn Commerce** is a full-stack, production-grade **modern e-commerce marketplace and department store platform** designed with an ultra-simple, minimal, and high-converting UI:
 
 - **Branding**: **Tirenn Commerce** (`tirenn commerce`) - The Modern Online Marketplace.
+- **🐘 Unified Database & Vector Engine (PostgreSQL 16 + pgvector)**:
+  - Container `tirenn-postgres` running `pgvector/pgvector:pg16` on Port `5432`.
+  - Database name: `gocommerce_db`, user: `gouser`.
+  - Storing both relational business data (Users, Categories, Products, Orders, Order Items, Stock Logs) and 384-dimensional dense vectors (`products.embedding`) with **`HNSW`** index.
+  - Replaces external vector DBs (e.g. Qdrant) with unified SQL Cosine distance (`<=>`) queries, eliminating dual-write sync issues and stale search data.
+- **🤖 Conversational AI Shopper (Agentic Tool Calling + RAG)**:
+  - **Local LLM Engine**: **Ollama** running `qwen2.5:3b` in Docker (`tirenn-ollama` on Port `11434`).
+  - **Tool Calling Architecture**: The LLM calls 3 autonomous tools:
+    1. `search_products`: Native `pgvector` Cosine distance similarity with `min_price`, `max_price`, `in_stock`, and `category_id` filters.
+    2. `check_product_stock`: Real-time inventory and pricing lookup via Go backend API.
+    3. `add_to_cart`: Autonomous item addition to customer cart.
+  - **Conversational Modal UI**: Interactive chat with native Markdown support (`**bold**`, lists, bullets), product card previews with thumbnails, SKU badges, dynamic tool execution indicators, and **Reset Chat** functionality.
 - **🧠 Python AI Semantic Search Microservice (`ai-service/`)**:
   - **Framework**: **FastAPI** + **Uvicorn** running on Port 8000.
-  - **Local Embedding Engine**: **FastEmbed** (`BAAI/bge-small-en-v1.5` / `bge-m3` ONNX runtime) running 100% locally on CPU in <5ms with zero external API fees.
-  - **Vector DB**: Embedded **Qdrant** vector store with Cosine distance indexing across products (`name`, `category`, `description`, `sku`).
-  - **Endpoints**: `POST /api/v1/search/semantic`, `POST /api/v1/index-products`, `POST /api/v1/sync-from-backend`, `GET /healthz`.
-- **⚡ Hybrid Search in Go Backend**:
-  - `AIClient` in `backend/internal/domain/product/ai_client.go` routes semantic searches to the Python AI service when `?semantic=true` is requested.
-  - Graceful fallback: If the AI microservice is offline or returns empty, Go automatically falls back to pure MySQL Full-Text Search.
+  - **Local Embedding Engine**: **SentenceTransformers** (`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`) running locally with native **Bahasa Indonesia** understanding (~220MB model size, 384 dimensions, string-literal pgvector serialization).
+  - **PostgreSQL Vector Adapter**: Direct connection via `psycopg2` and `pgvector` Python client.
+  - **Endpoints**: `POST /api/v1/search/semantic`, `POST /api/v1/chat/shopper`, `POST /api/v1/index-products`, `POST /api/v1/sync-from-backend`, `GET /healthz`.
+- **📊 Centralized Observability & Logging Stack (`logging/`)**:
+  - **Grafana Loki 3.0** (Port `3100`): Centralized log aggregation engine.
+  - **Grafana Promtail 3.0** (Port `9080`): Automatic Docker container log scraper via `/var/run/docker.sock`.
+  - **Grafana Dashboard** (Port `3001`): Web UI for LogQL search, live streaming, error filtering, and trace correlation (`admin`/`admin`).
+- **🆔 End-to-End Tracing & Structured Error Logging**:
+  - **RequestID Middleware**: Generates/preserves `X-Request-ID`, injects it into Go `context.Context`, and returns it in headers and JSON responses.
+  - **Layer-by-Layer Error Logging**: `logger.Error(ctx, layer, msg, err)` records structured `APP_LOG` entries across Handlers, UseCases, and Repositories with caller file/line numbers.
+  - **AI Response Audit Trail**: `AI_RESPONSE_LOG` records prompt, tool parameters, execution output, latency, and full AI synthesized answers.
 - **Auto-Pagination (Infinite Scrolling)**: Native `IntersectionObserver`-based auto pagination on the Storefront (`12 products/batch`) with animated loading spinners and completion indicators (`✓ Semua 100 produk telah ditampilkan`).
 - **Catalog & Localization**: **100 Products across 8 Categories in Bahasa Indonesia** with authentic Indonesian names, product descriptions, localized user profiles, and Indonesian Rupiah (`Rp` / `IDR`) pricing.
-- **Security & Git Hygiene**: Zero hardcoded credentials in Makefiles. `.gitignore` configured to ignore `.env`, binaries, test reports, and AI assistant artifacts (`.agents/`, `.gemini/`, `.claude/`, `.cursor/`).
-- **Currency**: **Indonesian Rupiah (IDR / Rp)** formatted across all storefront and admin operations (e.g. `Rp 1.499.000`).
-- **Role Isolation**:
-  - **👑 Admin**: When logging in as `ADMIN`, the user is strictly and exclusively routed to the Merchant Console (`admin-dashboard`, `admin-products`, `admin-orders`, `admin-customers`). All non-admin storefront elements (cart, catalog filters, banners) are hidden from Admin.
-  - **🛍️ Customer / Public**: Full access to clean storefront, real-time search, cart drawer, checkout, and order history.
 - **Frontend Stack**: **React 19 + TypeScript + Vite + Tailwind CSS 4** (clean component architecture in `frontend/src/`).
-- **Backend Stack**: **Golang (Go 1.24+)**, Gin framework, GORM ORM, strict MySQL database, Viper configuration loader, JWT RBAC, and Goose database migrations.
+- **Backend Stack**: **Golang (Go 1.24+)**, Gin framework, GORM (PostgreSQL Driver), Viper configuration loader, and JWT RBAC.
 - **QA Automation Workspace (`qa/`)**:
   - **Browser E2E Testing**: **Playwright** located in `qa/` (`qa/playwright.config.ts`, `qa/e2e/`) testing all user-facing storefront and admin journeys in Chromium.
   - **Automatic Post-Test Cleanup**: Configured `posttest:e2e` hook (`qa/scripts/clean-reports.js`) that automatically purges all `test-results/` and `playwright-report/` directories after every test run.
-  - **API & Concurrency Testing**: Dedicated Go testing suite in `qa/` (`qa/e2e_api_test.go` and `qa/main.go`) verifying atomic `SELECT FOR UPDATE` overselling prevention.
-- **Infrastructure & CI/CD**: Multi-stage Dockerfiles, Docker Compose (`mysql` + `backend` + `ai-service` + `frontend`), and GitHub Actions CI/CD pipeline (`.github/workflows/ci-cd.yml`).
+- **Infrastructure & Containerization**: 8 containerized Docker services (`tirenn-postgres`, `tirenn-ollama`, `tirenn-ai-service`, `tirenn-backend`, `tirenn-frontend`, `tirenn-loki`, `tirenn-promtail`, `tirenn-grafana`).
 
 ---
 
@@ -39,8 +50,8 @@
 | No | Kategori (Category) | Jumlah Produk | Contoh Produk (Sample Product) |
 | :--- | :--- | :--- | :--- |
 | 1 | **⚡ Elektronik & Gadget** | 15 Produk | Headphone Nirkabel AuraPro ANC, Smartwatch TitanFit, Keyboard ApexCraft RGB 75% |
-| 2 | **👔 Fashion Pria** | 13 Produk | Hoodie Heavyweight UrbanCraft, Jaket Windbreaker AeroFlex, Kaos Oversized 24s |
-| 3 | **👗 Fashion Wanita** | 12 Produk | Blouse Katun Linen, Celana Kulot High Waist, Cardigan Rajut Korean Style |
+| 2 | **👔 Fashion Pria** | 13 Produk | Celana Jeans Pria Slim Fit Washed, Hoodie Heavyweight, Jaket Windbreaker |
+| 3 | **👗 Fashion Wanita** | 12 Produk | Celana Jeans Wanita High Waist, Blouse Katun Linen, Piyama Satin Silk |
 | 4 | **🏡 Peralatan Rumah Tangga** | 13 Produk | Penggiling Kopi BaristaCraft, Lampu Nordic Glow, Air Fryer Digital 4.5L |
 | 5 | **🎒 Olahraga & Outdoor** | 12 Produk | Tas Ransel Nomad 35L Rolltop, Tumbler Termos 1000ml, Matras Yoga TPE |
 | 6 | **✨ Kecantikan & Perawatan** | 12 Produk | Serum Niacinamide 10%, Sunscreen Gel SPF 50+, Gentle Cleanser Ceramide |
@@ -54,7 +65,6 @@
 
 Run tests from project root:
 - **Playwright Browser Tests (with automatic report purge)**: `make test-e2e` (or `cd qa && npm run test:e2e`)
-- **API & Concurrency Tests**: `make qa-test` (or `make qa-run`)
 
 | Suite | Runner | Verification Scope | Status |
 | :--- | :--- | :--- | :--- |
@@ -63,34 +73,25 @@ Run tests from project root:
 | **Cart Drawer** | Playwright (Chromium) | Item addition, badge count, drawer open, quantity +/- controls | ✅ PASS |
 | **Shopper Checkout** | Playwright (Chromium) | 1-Click Shopper Demo auth, checkout form submission, order history redirect | ✅ PASS |
 | **Admin Control & IDR**| Playwright (Chromium) | 1-Click Admin Demo login, direct admin view locking, Rupiah KPIs, product CRUD, orders, and CRM | ✅ PASS |
-| **API & Concurrency** | Go test (`qa/`) | 10 concurrent requests on 1 unit inventory, verifying zero overselling with atomic locks | ✅ PASS |
 
 ---
 
-## 💻 4. Makefile Command Cheat Sheet
+## 💻 4. Makefile & Docker Command Cheat Sheet
 
 ```bash
 # Automated Browser Testing (Playwright from qa/ with auto report purge)
 make test-e2e                          # Run all Playwright E2E browser tests
 
-# Python AI Semantic Search Microservice
-make ai-run                            # Start FastAPI AI service on :8000
-
-# Database Migrations (Goose)
-make migrate-create name=add_feature   # Create new migration file
-make migrate-up                        # Run all pending migrations
-make migrate-down                      # Roll back the single latest migration
-make migrate-status                    # Check migration version and status
-make migrate-reset                     # Roll back all migrations
-
-# Automated API QA Testing
-make qa-run                            # Run interactive QA automation runner
-make qa-test                           # Run Go testing suite in qa/
-
-# Docker Compose Services
-make docker-up                         # Launch MySQL, AI Service, Backend, and Frontend
+# Docker Compose Full Stack (All 8 Containers)
+make docker-up                         # Launch Postgres, Ollama, AI Service, Backend, Frontend, Loki, Promtail, Grafana
 make docker-down                       # Stop all services
-docker compose down -v --rmi all       # Stop and delete containers, images, and volumes
+docker compose up -d --build           # Rebuild and start updated containers
+
+# Observability (Grafana Loki)
+# Open http://localhost:3001 in browser (admin/admin) to search and stream logs with LogQL
+
+# Python AI Semantic Search & Shopper
+make ai-run                            # Start FastAPI AI service on :8000
 
 # Local Dev
 make backend-run                       # Run Go backend on :8080

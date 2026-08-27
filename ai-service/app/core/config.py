@@ -7,17 +7,21 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     ENVIRONMENT: str = "development"
     
-    # Embedding Model (BAAI/bge-small-en-v1.5 or BAAI/bge-m3 for multilingual)
-    EMBEDDING_MODEL_NAME: str = "BAAI/bge-small-en-v1.5"
+    # SOTA Multilingual & Indonesian Embedding Model (384 dimensions, ~220MB)
+    EMBEDDING_MODEL_NAME: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     
-    # Qdrant Vector Storage Path (None = in-memory)
-    QDRANT_STORAGE_PATH: str = "./data/qdrant_storage"
+    # PostgreSQL & pgvector Connection Settings
+    DB_HOST: str = "postgres"
+    DB_PORT: int = 5432
+    DB_USER: str = "gouser"
+    DB_PASSWORD: str = "gopassword"
+    DB_NAME: str = "gocommerce_db"
     
     # Core Backend URL
-    BACKEND_API_URL: str = "http://localhost:8080/api/v1"
+    BACKEND_API_URL: str = "http://backend:8080/api/v1"
 
     # Ollama Local LLM Settings (Qwen 2.5)
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_BASE_URL: str = "http://ollama:11434"
     LLM_MODEL: str = "qwen2.5:3b"
 
     class Config:

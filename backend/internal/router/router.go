@@ -33,6 +33,7 @@ func SetupRouter(cfg *config.Config, handlers *Handlers) *gin.Engine {
 	r := gin.Default()
 
 	// Global Middlewares
+	r.Use(middleware.RequestID())
 	r.Use(middleware.SetupCORS())
 	r.Use(middleware.StructuredLogger())
 

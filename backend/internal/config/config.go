@@ -15,7 +15,7 @@ type ServerConfig struct {
 	AIServiceURL string `mapstructure:"AI_SERVICE_URL"`
 }
 
-// DatabaseConfig stores MySQL database connection configurations
+// DatabaseConfig stores PostgreSQL database connection configurations
 type DatabaseConfig struct {
 	Host     string `mapstructure:"DB_HOST"`
 	Port     string `mapstructure:"DB_PORT"`
@@ -24,14 +24,14 @@ type DatabaseConfig struct {
 	Name     string `mapstructure:"DB_NAME"`
 }
 
-// DSN returns the formatted MySQL Data Source Name
+// DSN returns the formatted PostgreSQL Data Source Name
 func (d *DatabaseConfig) DSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
+		d.Host,
 		d.User,
 		d.Password,
-		d.Host,
-		d.Port,
 		d.Name,
+		d.Port,
 	)
 }
 
@@ -65,16 +65,16 @@ type Config struct {
 func LoadConfig(paths ...string) *Config {
 	v := viper.New()
 
-	// 1. Set Defaults
+	// 1. Set Defaults for PostgreSQL
 	v.SetDefault("PORT", "8080")
 	v.SetDefault("ENVIRONMENT", "development")
 	v.SetDefault("AI_SERVICE_URL", "http://localhost:8000")
 	v.SetDefault("DB_HOST", "127.0.0.1")
-	v.SetDefault("DB_PORT", "3306")
-	v.SetDefault("DB_USER", "root")
-	v.SetDefault("DB_PASSWORD", "rootpassword")
+	v.SetDefault("DB_PORT", "5432")
+	v.SetDefault("DB_USER", "gouser")
+	v.SetDefault("DB_PASSWORD", "gopassword")
 	v.SetDefault("DB_NAME", "gocommerce_db")
-	v.SetDefault("JWT_SECRET", "super-secret-comic-jwt-key-2026")
+	v.SetDefault("JWT_SECRET", "super-secret-tirenn-jwt-key-2026")
 	v.SetDefault("JWT_EXPIRE_HOURS", 24)
 	v.SetDefault("JWT_ISSUER", "gocommerce-api")
 

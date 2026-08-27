@@ -2,6 +2,8 @@ package product
 
 import (
 	"time"
+
+	"github.com/pgvector/pgvector-go"
 )
 
 type Category struct {
@@ -19,22 +21,23 @@ func (Category) TableName() string {
 }
 
 type Product struct {
-	ID                uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	CategoryID        uint      `gorm:"not null;index" json:"category_id"`
-	Category          Category  `gorm:"foreignKey:CategoryID;constraint:OnDelete:CASCADE" json:"category,omitempty"`
-	Name              string    `gorm:"size:200;not null;index" json:"name"`
-	Slug              string    `gorm:"size:220;not null;uniqueIndex" json:"slug"`
-	SKU               string    `gorm:"size:100;not null;uniqueIndex" json:"sku"`
-	Description       string    `gorm:"type:text" json:"description"`
-	Price             float64   `gorm:"type:decimal(12,2);not null;default:0.00" json:"price"`
-	StockQuantity     int       `gorm:"not null;default:0" json:"stock_quantity"`
-	LowStockThreshold int       `gorm:"not null;default:5" json:"low_stock_threshold"`
-	ImageURL          string    `gorm:"size:500" json:"image_url"`
-	IsActive          bool      `gorm:"default:true;not null;index" json:"is_active"`
-	Badge             string    `gorm:"size:50" json:"badge"` // e.g. "HOT!", "POW!", "SALE", "NEW"
-	Rating            float64   `gorm:"type:decimal(3,2);default:5.00" json:"rating"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ID                uint             `gorm:"primaryKey;autoIncrement" json:"id"`
+	CategoryID        uint             `gorm:"not null;index" json:"category_id"`
+	Category          Category         `gorm:"foreignKey:CategoryID;constraint:OnDelete:CASCADE" json:"category,omitempty"`
+	Name              string           `gorm:"size:200;not null;index" json:"name"`
+	Slug              string           `gorm:"size:220;not null;uniqueIndex" json:"slug"`
+	SKU               string           `gorm:"size:100;not null;uniqueIndex" json:"sku"`
+	Description       string           `gorm:"type:text" json:"description"`
+	Price             float64          `gorm:"type:decimal(12,2);not null;default:0.00" json:"price"`
+	StockQuantity     int              `gorm:"not null;default:0" json:"stock_quantity"`
+	LowStockThreshold int              `gorm:"not null;default:5" json:"low_stock_threshold"`
+	ImageURL          string           `gorm:"size:500" json:"image_url"`
+	IsActive          bool             `gorm:"default:true;not null;index" json:"is_active"`
+	Badge             string           `gorm:"size:50" json:"badge"`
+	Rating            float64          `gorm:"type:decimal(3,2);default:5.00" json:"rating"`
+	Embedding         *pgvector.Vector `gorm:"type:vector(384)" json:"-"`
+	CreatedAt         time.Time        `json:"created_at"`
+	UpdatedAt         time.Time        `json:"updated_at"`
 }
 
 func (Product) TableName() string {

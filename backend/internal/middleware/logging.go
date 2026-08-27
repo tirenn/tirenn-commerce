@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gocommerce-backend/internal/logger"
 )
 
 type StructuredLog struct {
 	Timestamp  string  `json:"timestamp"`
 	Service    string  `json:"service"`
+	RequestID  string  `json:"request_id,omitempty"`
 	ClientIP   string  `json:"client_ip"`
 	Method     string  `json:"method"`
 	Path       string  `json:"path"`
@@ -34,9 +36,17 @@ func StructuredLogger() gin.HandlerFunc {
 			path = path + "?" + raw
 		}
 
+		reqID := logger.GetRequestID(c.Request.Context())
+		if reqID == "" {
+			if id, exists := c.Get("request_id"); exists {
+				reqID = id.(string)
+			}
+		}
+
 		logEntry := StructuredLog{
 			Timestamp:  start.UTC().Format(time.RFC3339),
 			Service:    "tirenn-backend",
+			RequestID:  reqID,
 			ClientIP:   c.ClientIP(),
 			Method:     c.Request.Method,
 			Path:       path,

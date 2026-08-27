@@ -60,15 +60,15 @@ func (r *repository) FindByIDs(ctx context.Context, ids []uint) ([]Product, erro
 		return nil, err
 	}
 
-	// Preserve the semantic relevance order returned by the vector search
-	idMap := make(map[uint]Product, len(products))
+	// Preserve ordering from input IDs
+	productMap := make(map[uint]Product)
 	for _, p := range products {
-		idMap[p.ID] = p
+		productMap[p.ID] = p
 	}
 
-	ordered := make([]Product, 0, len(ids))
+	var ordered []Product
 	for _, id := range ids {
-		if p, ok := idMap[id]; ok {
+		if p, ok := productMap[id]; ok {
 			ordered = append(ordered, p)
 		}
 	}
@@ -98,37 +98,6 @@ func (r *repository) ListAll(ctx context.Context) ([]Product, error) {
 	return products, err
 }
 
-// formatBooleanFullText parses user search terms into intelligent MySQL Full-Text boolean search syntax
-// e.g. "celana jeans" -> "+(celana* jeans*) celana* jeans*", "TECH-AP-001" -> "+(TECH* AP* 001*) TECH* AP* 001*"
-func formatBooleanFullText(input string) string {
-	replacer := strings.NewReplacer("-", " ", "_", " ", "/", " ", ".", " ")
-	cleanedInput := replacer.Replace(input)
-	words := strings.Fields(cleanedInput)
-	if len(words) == 0 {
-		return ""
-	}
-	var cleanWords []string
-	for _, w := range words {
-		clean := strings.Map(func(r rune) rune {
-			if strings.ContainsRune("+-~*<>\"()@", r) {
-				return -1
-			}
-			return r
-		}, w)
-		if len(clean) > 0 {
-			cleanWords = append(cleanWords, clean+"*")
-		}
-	}
-	if len(cleanWords) == 0 {
-		return ""
-	}
-	if len(cleanWords) == 1 {
-		return "+" + cleanWords[0]
-	}
-	// Multi-word: Require at least one token, and boost ranking for rows with multiple tokens
-	return "+(" + strings.Join(cleanWords, " ") + ") " + strings.Join(cleanWords, " ")
-}
-
 func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error) {
 	var products []Product
 	var total int64
@@ -141,14 +110,15 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 		query = query.Where("products.is_active = ?", true)
 	}
 
-	// High-Precision Full-Text Search across Products (name, description, sku)
+	// PostgreSQL Case-Insensitive ILIKE Substring Search
 	if filter.Search != "" {
 		cleanSearch := strings.TrimSpace(filter.Search)
-		ftsQuery := formatBooleanFullText(cleanSearch)
-		if ftsQuery != "" {
+		tokens := strings.Fields(cleanSearch)
+		for _, token := range tokens {
+			pattern := "%" + token + "%"
 			query = query.Where(
-				"MATCH(products.name, products.description, products.sku) AGAINST (? IN BOOLEAN MODE)",
-				ftsQuery,
+				"(products.name ILIKE ? OR products.description ILIKE ? OR products.sku ILIKE ? OR categories.name ILIKE ?)",
+				pattern, pattern, pattern, pattern,
 			)
 		}
 	}
@@ -165,16 +135,20 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 		query = query.Where("products.price <= ?", filter.MaxPrice)
 	}
 
-	if filter.InStock != nil && *filter.InStock {
-		query = query.Where("products.stock_quantity > 0")
+	if filter.InStock != nil {
+		if *filter.InStock {
+			query = query.Where("products.stock_quantity > 0")
+		} else {
+			query = query.Where("products.stock_quantity = 0")
+		}
 	}
 
-	// Count total matching
+	// Count total records matching criteria
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Sorting
+	// Apply Sorting
 	switch filter.Sort {
 	case "price_asc":
 		query = query.Order("products.price ASC")
@@ -182,10 +156,10 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 		query = query.Order("products.price DESC")
 	case "name_asc":
 		query = query.Order("products.name ASC")
-	case "rating_desc":
-		query = query.Order("products.rating DESC")
-	default:
+	case "newest":
 		query = query.Order("products.created_at DESC")
+	default:
+		query = query.Order("products.id ASC")
 	}
 
 	// Pagination
@@ -194,29 +168,40 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 		page = 1
 	}
 	limit := filter.Limit
-	if limit < 1 || limit > 100 {
+	if limit < 1 {
 		limit = 12
 	}
 	offset := (page - 1) * limit
 
 	err := query.Offset(offset).Limit(limit).Find(&products).Error
-	return products, total, err
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return products, total, nil
 }
 
 func (r *repository) AdjustStock(ctx context.Context, log *StockAdjustmentLog) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Update product stock
-		if err := tx.Model(&Product{}).Where("id = ?", log.ProductID).Update("stock_quantity", log.NewStock).Error; err != nil {
+		// Update product stock quantity
+		if err := tx.Model(&Product{}).Where("id = ?", log.ProductID).
+			Update("stock_quantity", log.NewStock).Error; err != nil {
 			return err
 		}
-		// Save log
-		return tx.Create(log).Error
+
+		// Insert audit adjustment log
+		if err := tx.Create(log).Error; err != nil {
+			return err
+		}
+
+		return nil
 	})
 }
 
 func (r *repository) GetStockLogs(ctx context.Context, productID uint) ([]StockAdjustmentLog, error) {
 	var logs []StockAdjustmentLog
-	err := r.db.WithContext(ctx).Where("product_id = ?", productID).Order("created_at DESC").Find(&logs).Error
+	err := r.db.WithContext(ctx).Where("product_id = ?", productID).
+		Order("created_at DESC").Find(&logs).Error
 	return logs, err
 }
 
@@ -226,7 +211,7 @@ func (r *repository) CreateCategory(ctx context.Context, c *Category) error {
 
 func (r *repository) ListCategories(ctx context.Context) ([]Category, error) {
 	var categories []Category
-	err := r.db.WithContext(ctx).Order("name ASC").Find(&categories).Error
+	err := r.db.WithContext(ctx).Order("id ASC").Find(&categories).Error
 	return categories, err
 }
 

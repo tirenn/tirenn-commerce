@@ -1,22 +1,21 @@
 version: '3.8'
 
 services:
-  # MySQL Database
-  mysql:
-    image: mysql:8.0
-    container_name: tirenn-mysql
+  # PostgreSQL Database with pgvector Extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: tirenn-postgres
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: gocommerce_db
-      MYSQL_USER: gouser
-      MYSQL_PASSWORD: gopassword
+      POSTGRES_USER: gouser
+      POSTGRES_PASSWORD: gopassword
+      POSTGRES_DB: gocommerce_db
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      test: ["CMD-SHELL", "pg_isready -U gouser -d gocommerce_db"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -35,7 +34,7 @@ services:
     networks:
       - tirenn-net
 
-  # Python AI Semantic Search & Conversational Shopper Service
+  # Python AI Semantic Search & Conversational Shopper Service (pgvector Native)
   ai-service:
     build:
       context: ./ai-service
@@ -45,15 +44,21 @@ services:
     environment:
       PORT: 8000
       ENVIRONMENT: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: gouser
+      DB_PASSWORD: gopassword
+      DB_NAME: gocommerce_db
       BACKEND_API_URL: http://backend:8080/api/v1
       OLLAMA_BASE_URL: http://ollama:11434
       LLM_MODEL: qwen2.5:3b
     ports:
       - "8000:8000"
-    volumes:
-      - ai_vector_data:/app/data
     depends_on:
-      - ollama
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
     networks:
       - tirenn-net
 
@@ -68,8 +73,8 @@ services:
       PORT: 8080
       ENVIRONMENT: production
       AI_SERVICE_URL: http://ai-service:8000
-      DB_HOST: mysql
-      DB_PORT: 3306
+      DB_HOST: postgres
+      DB_PORT: 5432
       DB_USER: gouser
       DB_PASSWORD: gopassword
       DB_NAME: gocommerce_db
@@ -78,7 +83,7 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       ai-service:
         condition: service_started
@@ -158,9 +163,7 @@ networks:
     driver: bridge
 
 volumes:
-  mysql_data:
-    driver: local
-  ai_vector_data:
+  postgres_data:
     driver: local
   ollama_models:
     driver: local

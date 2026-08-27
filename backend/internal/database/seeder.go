@@ -28,6 +28,19 @@ type productTemplate struct {
 }
 
 func Seed(db *gorm.DB) error {
+	// AutoMigrate schema
+	if err := db.AutoMigrate(
+		&auth.User{},
+		&product.Category{},
+		&product.Product{},
+		&product.StockAdjustmentLog{},
+		&order.Order{},
+		&order.OrderItem{},
+	); err != nil {
+		log.Printf("AutoMigrate error: %v\n", err)
+		return err
+	}
+
 	var userCount int64
 	db.Model(&auth.User{}).Count(&userCount)
 	if userCount > 0 {
