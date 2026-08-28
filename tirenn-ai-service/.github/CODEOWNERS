@@ -1,0 +1,9 @@
+# ==============================================================================
+# Tirenn Commerce AI Service - CODEOWNERS
+# ==============================================================================
+* @tirenn tiorenndy@gmail.com
+
+/app/harness/      @tirenn
+/app/usecases/     @tirenn
+/app/repositories/ @tirenn
+/app/handlers/     @tirenn

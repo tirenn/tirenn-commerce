@@ -1,0 +1,43 @@
+# ==============================================================================
+# Tirenn Commerce - GitHub CODEOWNERS
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# ==============================================================================
+
+# Global Default Owner for all files in this repository
+* @tirenn tiorenndy@gmail.com
+
+# ------------------------------------------------------------------------------
+# 🌐 Frontend Application (React, Vite, TypeScript, TailwindCSS, i18n)
+# ------------------------------------------------------------------------------
+/tirenn-frontend/                    @tirenn
+/tirenn-frontend/src/                @tirenn
+/tirenn-frontend/src/locales/        @tirenn
+/tirenn-frontend/src/context/        @tirenn
+/tirenn-frontend/src/components/     @tirenn
+
+# ------------------------------------------------------------------------------
+# ⚡ Backend Microservice (Golang, Gin, GORM, PostgreSQL, Redis)
+# ------------------------------------------------------------------------------
+/tirenn-backend/                     @tirenn
+/tirenn-backend/cmd/                 @tirenn
+/tirenn-backend/internal/domain/     @tirenn
+/tirenn-backend/internal/database/   @tirenn
+/tirenn-backend/internal/config/     @tirenn
+
+# ------------------------------------------------------------------------------
+# 🤖 AI Shopper & Semantic Service (Python, FastAPI, pgvector, Agent Harness)
+# ------------------------------------------------------------------------------
+/tirenn-ai-service/                  @tirenn
+/tirenn-ai-service/app/harness/      @tirenn
+/tirenn-ai-service/app/usecases/     @tirenn
+/tirenn-ai-service/app/repositories/ @tirenn
+/tirenn-ai-service/app/handlers/     @tirenn
+
+# ------------------------------------------------------------------------------
+# 🏗️ Infrastructure & QA Automation (Docker Compose, Playwright, Nginx)
+# ------------------------------------------------------------------------------
+/tirenn-infra/                       @tirenn
+/tirenn-infra/qa/                    @tirenn
+/docker-compose*.yml                 @tirenn
+/.github/                            @tirenn
+/.agents/                            @tirenn

@@ -1,0 +1,9 @@
+# ==============================================================================
+# Tirenn Commerce Frontend - CODEOWNERS
+# ==============================================================================
+* @tirenn tiorenndy@gmail.com
+
+/src/components/ @tirenn
+/src/context/    @tirenn
+/src/locales/    @tirenn
+/src/services/   @tirenn

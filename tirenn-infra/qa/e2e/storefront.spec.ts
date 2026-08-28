@@ -113,7 +113,7 @@ test.describe('Storefront User-Facing Functionality', () => {
     await expect(chatInput).toBeVisible();
 
     // Send query for headphones
-    await chatInput.fill('AuraPro');
+    await chatInput.fill('AuraSound');
     await page.getByTestId('ai-chat-send').click();
 
     // Wait for product card to appear inside chat

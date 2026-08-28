@@ -1,0 +1,9 @@
+# ==============================================================================
+# Tirenn Commerce Backend - CODEOWNERS
+# ==============================================================================
+* @tirenn tiorenndy@gmail.com
+
+/cmd/               @tirenn
+/internal/domain/   @tirenn
+/internal/database/ @tirenn
+/internal/config/   @tirenn
