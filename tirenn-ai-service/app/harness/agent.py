@@ -154,13 +154,24 @@ class AgentHarness:
             logger.error(f"AgentHarness execution error: {e}", exc_info=True)
             final_reply = "Maaf, terjadi kendala saat memproses permintaan Anda. Silakan coba kembali."
 
-        # Deduplicate product cards by ID and enforce limit
+        # Deduplicate product cards by ID
         unique_prods: List[Dict[str, Any]] = []
         seen_ids = set()
         for p in suggested_products:
             if p.get("id") and p["id"] not in seen_ids:
                 seen_ids.add(p["id"])
                 unique_prods.append(p)
+
+        # In-Context Sync: If LLM curated products in its final reply, keep only the products LLM referenced
+        if final_reply and unique_prods:
+            reply_lower = final_reply.lower()
+            curated_prods = [
+                p for p in unique_prods
+                if (p.get("sku") and p["sku"].lower() in reply_lower)
+                or (p.get("name") and len(p["name"]) > 5 and p["name"].lower()[:20] in reply_lower)
+            ]
+            if curated_prods:
+                unique_prods = curated_prods
 
         unique_prods = unique_prods[:settings.CHAT_SEARCH_LIMIT]
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0

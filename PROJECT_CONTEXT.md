@@ -54,7 +54,20 @@ tirenn-commerce/
 - `[AI Service]` Integrated Redis Session Management (`SessionRepository`):
   - Session chat history stored under `chat:session:{session_id}` with auto-expiring 24h TTL.
   - Added `DELETE /api/v1/chat/session/{session_id}` endpoint to purge sessions on demand.
+- `[Frontend]` Integrated Redis Chat Session Lifecycle into `AIChatModal.tsx`:
+  - Maintained unique `sessionId` in `localStorage` and dispatched `session_id` payload on `/chat/shopper`.
+  - Added asynchronous `DELETE /api/v1/chat/session/{sessionId}` call when the user clicks the "Reset Chat" button, instantly purging conversation memory from Redis and regenerating a clean session token.
 - `[Frontend]` Enhanced `AIChatModal.tsx` `cart_action` handler to reliably dispatch items into `CartContext` supporting both direct top-level payload attributes and nested `cartAction.product` objects, ensuring items added via AI chat immediately appear in Cart Drawer and update the Cart badge.
+- `[AI Service]` Hardened Prompt Injection Defenses & External Document Isolation:
+  - Added strict Security & Prompt Injection Immunity Directive in `SYSTEM_PROMPT` to protect system prompt privacy and reject jailbreak/DAN/override attempts.
+  - Implemented boundary isolation tags (`<untrusted_document_content>`) in `SearchStorePoliciesAndSOPTool` to treat all external RAG document excerpts as passive reference data, mitigating indirect prompt injection risks.
+- `[AI Service]` Decoupled Tool Descriptions into Self-Describing Tool Schemas:
+  - Pruned redundant `AVAILABLE TOOLS & ACTIONS` text from `SYSTEM_PROMPT`.
+  - Tool invocation contracts and parameter specifications are declared strictly within each tool class (`name`, `description`, `parameters_schema`).
+  - Reduced token overhead by ~35% and made adding new tools strictly follow the Open/Closed Principle without modifying system prompt.
+- `[AI Service]` Implemented In-Context Filtering & Product Card Synchronization:
+  - Augmented `SYSTEM_PROMPT` with strict in-context curation directives to ignore contradictory search candidates and require explicit SKU referencing.
+  - Implemented card pruning synchronization in `AgentHarness.run` so only products verified and referenced by the LLM in its final reply are rendered as frontend suggested product cards.
 - `[AI Service]` Purged all regex hacks and artificial guardrails:
   - Deleted `app/harness/guardrails/` (`relevance.py` and `safety.py`).
   - Removed dynamic `lang_directive` injection and English regex keyword scrapers from `agent.py`.

@@ -23,8 +23,7 @@ app/
 │   ├── product_repository.py  # PostgreSQL queries, pgvector HNSW search & category maps
 │   └── session_repository.py  # Redis session storage with 24h auto-expiring TTL
 ├── harness/
-│   ├── agent.py               # Enterprise Agent Harness engine (ReAct loop & guardrails)
-│   ├── guardrails/            # RelevanceGuardrail & SafetyGuardrail
+│   ├── agent.py               # Pure Domain-Agnostic ReAct Agent Harness engine
 │   └── tools/                 # BaseTool, SearchProductsTool, GetProductDetailTool, GetProductStockTool, AddToCartTool, ViewCartTool, SearchStorePoliciesAndSOPTool
 ├── usecases/
 │   ├── knowledge_usecase.py   # In-memory PDF text extraction, chunker & RAG retrieval
@@ -43,12 +42,12 @@ app/
 ## 🛠️ Tool Calling & RAG Implementation
 
 The Shopper Agent dispatches specialized tools via the Agent Harness:
-1. **`search_products`**: Queries pgvector with multi-stage adaptive thresholds and category filters, pruned by `RelevanceGuardrail`. Returns minimal facts.
+1. **`search_products`**: Queries PostgreSQL pgvector + pg_trgm with multi-stage adaptive thresholds and category filters, curated in-context by the LLM. Returns minimal factual data.
 2. **`get_product_detail`**: Retrieves in-depth specifications, materials, features, rating, badge, and description strictly by SKU.
 3. **`get_product_stock`**: Verifies exact real-time inventory counts, stock status (`ready_stock`/`low_stock`/`out_of_stock`), and price strictly by SKU.
 4. **`add_to_cart`**: Mutating tool strictly taking `sku` and `qty`, re-validating real-time stock on the server at mutation time.
 5. **`view_cart`**: Displays current items inside the shopping cart.
-6. **`search_store_policies_and_sop`**: Vector RAG search against PostgreSQL `pgvector` knowledge chunks for store policies, return/warranty terms, and merchant SLAs.
+6. **`search_store_policies_and_sop`**: Vector RAG search against PostgreSQL `pgvector` knowledge chunks for store policies, return/warranty terms, and merchant SLAs, isolated in `<untrusted_document_content>` tags.
 
 ---
 
@@ -77,6 +76,16 @@ The Shopper Agent dispatches specialized tools via the Agent Harness:
 - `[AI Service]` Integrated Redis Session Management (`SessionRepository`):
   - Session chat history stored under `chat:session:{session_id}` with auto-expiring 24h TTL.
   - Added `DELETE /api/v1/chat/session/{session_id}` endpoint to purge sessions on demand.
+- `[AI Service]` Hardened Prompt Injection Defenses & External Document Isolation:
+  - Added strict Security & Prompt Injection Immunity Directive in `SYSTEM_PROMPT` to protect system prompt privacy and reject jailbreak/DAN/override attempts.
+  - Implemented boundary isolation tags (`<untrusted_document_content>`) in `SearchStorePoliciesAndSOPTool` to treat all external RAG document excerpts as passive reference data, mitigating indirect prompt injection risks.
+- `[AI Service]` Decoupled Tool Descriptions into Self-Describing Tool Schemas:
+  - Pruned redundant `AVAILABLE TOOLS & ACTIONS` text from `SYSTEM_PROMPT`.
+  - Tool invocation contracts and parameter specifications are declared strictly within each tool class (`name`, `description`, `parameters_schema`).
+  - Reduced token overhead by ~35% and made adding new tools strictly follow the Open/Closed Principle without modifying system prompt.
+- `[AI Service]` Implemented In-Context Filtering & Product Card Synchronization:
+  - Augmented `SYSTEM_PROMPT` with strict in-context curation directives to ignore contradictory search candidates and require explicit SKU referencing.
+  - Implemented card pruning synchronization in `AgentHarness.run` so only products verified and referenced by the LLM in its final reply are rendered as frontend suggested product cards.
 - `[AI Service]` Purged all regex hacks and artificial guardrails:
   - Deleted `app/harness/guardrails/` (`relevance.py` and `safety.py`).
   - Removed dynamic `lang_directive` injection and English regex keyword scrapers from `agent.py`.

@@ -355,9 +355,6 @@ class GetProductStockTool(BaseTool):
         }
 
 
-CheckProductStockTool = GetProductStockTool
-
-
 class SearchStorePoliciesAndSOPTool(BaseTool):
     """Tool for querying the RAG knowledge base regarding shopping SOP, warranty, returns, and merchant operations"""
 
@@ -392,7 +389,7 @@ class SearchStorePoliciesAndSOPTool(BaseTool):
             {
                 "document": r.get("document_title"),
                 "page": r.get("page_number"),
-                "excerpt": r.get("content"),
+                "content": f"<untrusted_document_content>\n{r.get('content', '').strip()}\n</untrusted_document_content>",
                 "relevance_score": round(r.get("score", 0.0), 3)
             }
             for r in results

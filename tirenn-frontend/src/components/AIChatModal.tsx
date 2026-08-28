@@ -129,7 +129,28 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
     );
   }, [i18n.language]);
 
-  const handleResetChat = () => {
+  const [sessionId, setSessionId] = useState<string>(() => {
+    const saved = localStorage.getItem('tirenn_ai_session_id');
+    if (saved) return saved;
+    const newId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    localStorage.setItem('tirenn_ai_session_id', newId);
+    return newId;
+  });
+
+  const handleResetChat = async () => {
+    if (sessionId) {
+      try {
+        await fetch(`${AI_API_BASE_URL}/chat/session/${sessionId}`, {
+          method: 'DELETE',
+        });
+      } catch (err) {
+        console.warn('Failed to delete Redis chat session:', err);
+      }
+    }
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    localStorage.setItem('tirenn_ai_session_id', newSessionId);
+    setSessionId(newSessionId);
+
     setMessages([
       {
         id: 'welcome',
@@ -166,6 +187,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
           })),
           is_authenticated: !!currentUser,
           user_name: currentUser?.name || undefined,
+          session_id: sessionId,
         }),
       });
 
