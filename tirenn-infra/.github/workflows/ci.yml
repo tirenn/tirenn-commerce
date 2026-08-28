@@ -1,0 +1,42 @@
+name: Tirenn Infrastructure & QA CI/CD
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  validate-compose:
+    name: Validate Docker Compose Configuration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Compose File Syntax
+        run: docker compose -f docker-compose.yml config
+
+  qa-typecheck:
+    name: QA Suite Typecheck & Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'qa/package-lock.json'
+
+      - name: Install QA Dependencies
+        working-directory: ./qa
+        run: npm ci
+
+      - name: Validate TypeScript Specs
+        working-directory: ./qa
+        run: npx tsc --noEmit

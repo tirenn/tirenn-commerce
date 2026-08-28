@@ -65,6 +65,7 @@ async def _bg_sync():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🧠 Tirenn AI Service starting up with Clean Architecture (Handler-UseCase-Repository)...")
+    asyncio.create_task(llm_repo.ensure_model_available())
     asyncio.create_task(_bg_sync())
     yield
     logger.info("🛑 Tirenn AI Service shutting down...")

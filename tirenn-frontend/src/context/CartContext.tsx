@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { Product } from '../types';
 import { useToast } from './ToastContext';
+import { useCurrency } from './CurrencyContext';
 
 export interface CartItem {
   product: Product;
@@ -21,6 +22,7 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
+  const { getPriceInActiveCurrency } = useCurrency();
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem('tirenn_cart');
@@ -43,11 +45,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ? items.reduce((sum, item) => sum + (Number(item?.quantity) || 0), 0)
     : 0;
 
+  // Auto-convert each item's native price to the currently active currency before summing
   const cartTotal = Array.isArray(items)
-    ? items.reduce(
-        (sum, item) => sum + (Number(item?.product?.price) || 0) * (Number(item?.quantity) || 0),
-        0
-      )
+    ? items.reduce((sum, item) => {
+        const itemPriceInActiveCurrency = getPriceInActiveCurrency(
+          Number(item?.product?.price) || 0,
+          item?.product?.currency || (item?.product?.sku?.startsWith('EN-') ? 'USD' : 'IDR')
+        );
+        return sum + itemPriceInActiveCurrency * (Number(item?.quantity) || 0);
+      }, 0)
     : 0;
 
   const addToCart = (product: Product, quantity: number = 1) => {

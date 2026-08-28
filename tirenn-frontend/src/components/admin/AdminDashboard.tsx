@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../services/api';
-import { formatRupiah } from '../../utils/format';
+import { useCurrency } from '../../context/CurrencyContext';
 import type { DashboardData, AppView } from '../../types';
 
 interface AdminDashboardProps {
@@ -8,6 +8,7 @@ interface AdminDashboardProps {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onSelectView }) => {
+  const { formatPrice } = useCurrency();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -83,7 +84,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onSelectView }) 
             TOTAL REVENUE
           </span>
           <div className="text-2xl font-black text-slate-900">
-            {formatRupiah(data.summary?.total_revenue || 0)}
+            {formatPrice(data.summary?.total_revenue || 0)}
           </div>
           <span className="text-[11px] text-emerald-600 font-semibold mt-1 block">
             ↑ 14.2% vs previous period
@@ -152,7 +153,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onSelectView }) 
               return (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
                   <div className="text-[10px] font-bold text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {formatRupiah(item.revenue)}
+                    {formatPrice(item.revenue)}
                   </div>
                   <div
                     style={{ height: `${heightPercent}%` }}
@@ -177,7 +178,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onSelectView }) 
               {data.top_selling_products?.length === 0 ? (
                 <p className="text-xs text-slate-400 py-6 text-center">No sales recorded yet</p>
               ) : (
-                data.top_selling_products?.slice(0, 4).map((p, idx) => (
+                data.top_selling_products?.slice(0, 4).map((p: any, idx) => (
                   <div key={idx} className="flex items-center justify-between text-xs pb-2 border-b border-slate-50">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-[10px]">
@@ -185,11 +186,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onSelectView }) 
                       </span>
                       <div className="truncate">
                         <h4 className="font-semibold text-slate-900 truncate">{p.product_name}</h4>
-                        <span className="text-[10px] text-slate-400">{p.total_sold} units sold</span>
+                        <span className="text-[10px] text-slate-400">{p.units_sold || p.total_sold} units sold</span>
                       </div>
                     </div>
                     <span className="font-bold text-slate-900 whitespace-nowrap">
-                      {formatRupiah(p.total_revenue)}
+                      {formatPrice(p.revenue || p.total_revenue)}
                     </span>
                   </div>
                 ))

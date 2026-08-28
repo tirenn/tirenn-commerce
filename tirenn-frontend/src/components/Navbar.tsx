@@ -1,6 +1,8 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { useToast } from '../context/ToastContext';
 import type { AppView } from '../types';
 
@@ -21,8 +23,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   searchTerm,
   onSearchChange,
 }) => {
+  const { t, i18n } = useTranslation();
   const { currentUser, logout } = useAuth();
   const { cartCount } = useCart();
+  const { currency } = useCurrency();
   const { showToast } = useToast();
 
   const isAdmin = currentUser?.role === 'ADMIN';
@@ -30,11 +34,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleLogout = () => {
     logout();
     onSelectView('storefront');
-    showToast('Signed out', 'info');
+    showToast(i18n.language === 'en' ? 'Signed out successfully' : 'Berhasil keluar', 'info');
+  };
+
+  const toggleLanguage = () => {
+    const nextLang = i18n.language === 'id' ? 'en' : 'id';
+    i18n.changeLanguage(nextLang);
+    localStorage.setItem('tirenn_lang', nextLang);
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-slate-200">
+    <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           
@@ -54,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
               {isAdmin && (
                 <span className="text-[10px] font-semibold text-purple-700 uppercase tracking-wider">
-                  Merchant Console
+                  {t('nav.role_admin')}
                 </span>
               )}
             </div>
@@ -68,12 +78,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="text"
                   data-testid="search-input"
                   className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-8 py-2 text-slate-900 outline-none focus:bg-white focus:border-blue-600 transition-all"
-                  placeholder="Search products..."
+                  placeholder={t('nav.search_placeholder')}
                   value={searchTerm}
                   onChange={(e) => onSearchChange(e.target.value)}
                 />
                 <svg className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 {searchTerm && (
                   <button
@@ -104,7 +114,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   currentView === 'admin-products' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                Products & Stock
+                {t('admin.manage_products')}
               </button>
               <button
                 data-testid="admin-tab-orders"
@@ -113,7 +123,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   currentView === 'admin-orders' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                Orders
+                {t('orders.title')}
               </button>
               <button
                 data-testid="admin-tab-customers"
@@ -129,6 +139,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Action Items */}
           <div className="flex items-center gap-2 sm:gap-3">
+            
+            {/* Language & Currency Switcher Toggle */}
+            <button
+              data-testid="lang-currency-toggle"
+              onClick={toggleLanguage}
+              title="Switch Language & Currency (IDR / USD)"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200"
+            >
+              <span className="text-sm">{i18n.language === 'en' ? '🇺🇸' : '🇮🇩'}</span>
+              <span className="uppercase">{i18n.language}</span>
+              <span className="text-slate-400">|</span>
+              <span className="text-blue-600 font-bold">{currency === 'USD' ? '$' : 'Rp'}</span>
+            </button>
+
             {!isAdmin ? (
               <>
                 <button
@@ -149,7 +173,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       currentView === 'my-orders' ? 'text-blue-600 bg-blue-50' : 'text-slate-700 hover:bg-slate-100'
                     }`}
                   >
-                    Orders
+                    {t('nav.my_orders')}
                   </button>
                 )}
 
@@ -159,7 +183,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={onOpenCart}
                   className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-1.5 px-3 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
                 >
-                  <span>Cart</span>
+                  <span>{t('nav.cart')}</span>
                   {cartCount > 0 && (
                     <span data-testid="cart-badge" className="bg-white text-blue-600 text-xs px-1.5 py-0.2 rounded-full font-bold">
                       {cartCount}
@@ -182,7 +206,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={handleLogout}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer"
                 >
-                  Logout
+                  {t('nav.logout')}
                 </button>
               </div>
             ) : (
@@ -191,7 +215,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={onOpenAuth}
                 className="border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
               >
-                Sign In
+                {t('nav.login')}
               </button>
             )}
           </div>
@@ -203,7 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <input
               type="text"
               className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-900 outline-none"
-              placeholder="Search products..."
+              placeholder={t('nav.search_placeholder')}
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
             />

@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCart } from '../context/CartContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { formatRupiah } from '../utils/format';
+import { useCurrency } from '../context/CurrencyContext';
 import { AI_API_BASE_URL } from '../services/api';
 
 interface Message {
@@ -19,7 +20,7 @@ interface AIChatModalProps {
   onAuthRequired?: () => void;
 }
 
-// Lightweight Markdown text renderer (handles **bold**, *italic*, list items, clean bullets, and strips redundant image URLs)
+// Lightweight Markdown text renderer
 const FormattedMessageText: React.FC<{ text: string }> = ({ text }) => {
   const lines = text.split('\n');
 
@@ -29,7 +30,7 @@ const FormattedMessageText: React.FC<{ text: string }> = ({ text }) => {
         const trimmed = line.trim();
         if (!trimmed) return <div key={lineIdx} className="h-1" />;
 
-        // Clean out raw image references or Markdown image embeds (![...] or [Lihat Gambar])
+        // Clean out raw image references
         if (
           trimmed.toLowerCase().startsWith('gambar:') ||
           trimmed.toLowerCase().startsWith('- gambar:') ||
@@ -78,15 +79,21 @@ const FormattedMessageText: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose, onAuthRequired }) => {
+export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => {
+  const { t, i18n } = useTranslation();
   const { addToCart } = useCart();
   const { showToast } = useToast();
   const { currentUser } = useAuth();
+  const { formatPrice } = useCurrency();
+
+  const isEn = i18n.language === 'en';
 
   const INITIAL_MESSAGE: Message = {
     id: 'welcome',
     role: 'assistant',
-    content: 'Halo! 👋 Saya **Tirenn AI Shopper**.\n\nAda yang bisa saya bantu carikan hari ini? Anda bisa meminta **rekomendasi hadiah**, mencari produk dengan **batas harga tertentu**, atau menanyakan **ketersediaan stok barang**!',
+    content: isEn
+      ? 'Hi! 👋 I am **Tirenn AI Shopper**.\n\nHow can I help you today? You can ask for **gift recommendations**, search products by **price range**, or ask me to **add items to your shopping cart**!'
+      : 'Halo! 👋 Saya **Tirenn AI Shopper**.\n\nAda yang bisa saya bantu carikan hari ini? Anda bisa meminta **rekomendasi hadiah**, mencari produk dengan **batas harga tertentu**, atau meminta saya **memasukkan barang ke keranjang**!',
   };
 
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
@@ -107,7 +114,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose, onAut
   const handleResetChat = () => {
     setMessages([INITIAL_MESSAGE]);
     setInput('');
-    showToast('Riwayat chat berhasil dibersihkan', 'info');
+    showToast(isEn ? 'Chat history cleared' : 'Riwayat chat berhasil dibersihkan', 'info');
   };
 
   const handleSend = async (textToSend?: string) => {
@@ -139,53 +146,42 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose, onAut
       });
 
       if (res.status === 429) {
-        showToast('Terlalu banyak permintaan (Rate limit exceeded). Mohon tunggu beberapa saat.', 'error');
+        showToast(isEn ? 'Rate limit exceeded. Please wait a moment.' : 'Terlalu banyak permintaan. Mohon tunggu beberapa saat.', 'error');
         throw new Error('Rate limit exceeded');
       }
 
-      if (!res.ok) throw new Error('Gagal menghubungi AI Shopper');
+      if (!res.ok) throw new Error('Failed to connect to AI Shopper');
       const data = await res.json();
 
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.reply || 'Berikut adalah hasil yang saya temukan:',
+        content: data.reply || (isEn ? 'Here are the matching products:' : 'Berikut adalah hasil yang saya temukan:'),
         suggestedProducts: data.suggested_products || [],
         toolCalls: data.tool_calls || [],
       };
 
       setMessages((prev) => [...prev, aiMsg]);
 
-      // If AI executed an add_to_cart action or returned auth_required
-      const cartPayload: any = data.cart_action || (
-        Array.isArray(data.tool_calls) 
-          ? data.tool_calls.find((tc: any) => tc.name === 'add_to_cart' && tc.output)?.output 
-          : null
-      );
-
-      if (cartPayload) {
-        if (cartPayload.action === 'auth_required' || !currentUser) {
-          showToast('🔒 Silakan login terlebih dahulu untuk memasukkan produk ke keranjang belanja.', 'info');
-          if (onAuthRequired) {
-            onAuthRequired();
-          }
-        } else if (cartPayload.action === 'cart_added' && (cartPayload.product_id || cartPayload.id || cartPayload.sku)) {
-          addToCart(
-            {
-              id: cartPayload.product_id || cartPayload.id,
-              name: cartPayload.name,
-              sku: cartPayload.sku,
-              price: Number(cartPayload.price || 0),
-              image_url: cartPayload.image_url || '',
-              stock_quantity: Number(cartPayload.stock_quantity || 99),
-            } as any,
-            cartPayload.quantity || 1
-          );
-          showToast(
-            `🛒 ${cartPayload.name} (${cartPayload.quantity || 1}x) berhasil dimasukkan ke keranjang!`,
-            'success'
-          );
-        }
+      // If AI executed an add_to_cart action, dispatch to local CartContext (guest or user)
+      const cartAction = data.cart_action;
+      if (cartAction && cartAction.action === 'cart_added' && cartAction.product) {
+        const prod = cartAction.product;
+        addToCart(
+          {
+            id: prod.id,
+            name: prod.name,
+            sku: prod.sku,
+            price: Number(prod.price || 0),
+            image_url: prod.image_url || '',
+            stock_quantity: Number(prod.stock_quantity || 99),
+          } as any,
+          prod.quantity || 1
+        );
+        showToast(
+          `🛒 ${prod.name} (${prod.quantity || 1}x) ${isEn ? 'added to cart!' : 'berhasil dimasukkan ke keranjang!'}`,
+          'success'
+        );
       }
     } catch (err: any) {
       setMessages((prev) => [
@@ -193,7 +189,9 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose, onAut
         {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: 'Maaf, saya sedang kesulitan memproses permintaan Anda. Silakan coba lagi sebentar lagi.',
+          content: isEn 
+            ? 'Sorry, I encountered an issue processing your request. Please try again shortly.' 
+            : 'Maaf, saya sedang kesulitan memproses permintaan Anda. Silakan coba lagi sebentar lagi.',
         },
       ]);
     } finally {
@@ -214,199 +212,211 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose, onAut
             </div>
             <div>
               <div className="font-bold text-sm leading-tight flex items-center gap-1.5">
-                Tirenn AI Shopper
+                {t('ai_chat.title')}
                 <span className="bg-purple-500/30 text-purple-200 text-[10px] px-1.5 py-0.2 rounded font-mono">
-                  Qwen 2.5
+                  Qwen 2.5 1.5B
                 </span>
-                {currentUser && (
-                  <span className="bg-emerald-500/30 text-emerald-300 text-[10px] px-1.5 py-0.2 rounded font-medium">
-                    {currentUser.name}
-                  </span>
-                )}
               </div>
-              <div className="text-[11px] text-slate-300">Asisten Belanja Pintar dengan Tool Calling</div>
+              <span className="text-[11px] text-slate-400">
+                {t('ai_chat.subtitle')}
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            {/* Reset Chat Button */}
+
+          <div className="flex items-center gap-1">
             <button
               onClick={handleResetChat}
-              title="Bersihkan riwayat percakapan"
-              className="text-slate-400 hover:text-white p-1.5 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-xs flex items-center gap-1"
+              title="Reset Chat"
+              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors text-xs cursor-pointer"
             >
-              <span>🔄</span>
-              <span className="hidden sm:inline text-[11px]">Reset</span>
+              🔄
             </button>
             <button
+              data-testid="ai-chat-close"
               onClick={onClose}
-              className="text-slate-400 hover:text-white p-1.5 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-lg leading-none"
+              className="text-slate-400 hover:text-white w-7 h-7 rounded-full hover:bg-slate-800 flex items-center justify-center cursor-pointer transition-colors text-sm"
             >
               ✕
             </button>
           </div>
         </div>
 
-        {/* Messages Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-          {messages.map((m) => {
-            const isUser = m.role === 'user';
-            return (
-              <div key={m.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                <div
-                  className={`max-w-[85%] rounded-2xl p-3.5 shadow-xs ${
-                    isUser
-                      ? 'bg-purple-600 text-white rounded-br-xs text-xs'
-                      : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs'
-                  }`}
-                >
-                  {isUser ? (
-                    <div className="whitespace-pre-wrap">{m.content}</div>
-                  ) : (
-                    <FormattedMessageText text={m.content} />
-                  )}
-                </div>
-
-                {/* Render Tool Calling Badges */}
-                {!isUser && m.toolCalls && m.toolCalls.length > 0 && (
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {m.toolCalls.map((tc, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center gap-1 text-[10px] font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded-md border border-purple-200"
-                      >
-                        ⚡ Tool: {tc.name}
-                      </span>
-                    ))}
-                  </div>
+        {/* Message Thread */}
+        <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-slate-50">
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}
+            >
+              <div
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-xs ${
+                  m.role === 'user'
+                    ? 'bg-blue-600 text-white rounded-br-none'
+                    : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'
+                }`}
+              >
+                {m.role === 'user' ? (
+                  <p className="text-xs leading-relaxed">{m.content}</p>
+                ) : (
+                  <FormattedMessageText text={m.content} />
                 )}
+              </div>
 
-                {/* Render Suggested Products Carousel / Cards */}
-                {!isUser && m.suggestedProducts && m.suggestedProducts.length > 0 && (
-                  <div className="mt-3 w-full max-w-[95%]">
-                    <div className="text-[11px] font-semibold text-slate-500 mb-2 flex items-center gap-1">
-                      <span>🛍️ Produk Terkait:</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {m.suggestedProducts.map((p) => (
-                        <div
-                          key={p.id}
-                          className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-xs flex flex-col justify-between hover:border-purple-300 transition-colors"
-                        >
-                          {/* Image Thumbnail */}
-                          <div className="w-full h-24 bg-slate-100 rounded-lg mb-2 overflow-hidden relative">
-                            {p.image_url ? (
-                              <img
-                                src={p.image_url}
-                                alt={p.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-400 text-xl">
-                                📦
-                              </div>
-                            )}
-                            {p.sku && (
-                              <span className="absolute top-1.5 left-1.5 bg-slate-900/80 backdrop-blur-xs text-white text-[9px] font-mono px-1.5 py-0.5 rounded">
-                                {p.sku}
-                              </span>
-                            )}
-                          </div>
+              {/* Tool Execution Logs Pill */}
+              {m.toolCalls && m.toolCalls.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {m.toolCalls.map((tc: any, idx: number) => (
+                    <span
+                      key={idx}
+                      className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full font-mono flex items-center gap-1"
+                    >
+                      <span>⚡ Tool:</span>
+                      <b>{tc.name}</b>
+                    </span>
+                  ))}
+                </div>
+              )}
 
-                          {/* Product Details */}
-                          <div className="space-y-1 mb-2.5">
-                            <div className="font-semibold text-slate-900 line-clamp-2 text-[11px] leading-tight">
+              {/* Visual Interactive Product Cards */}
+              {m.suggestedProducts && m.suggestedProducts.length > 0 && (
+                <div className="mt-2.5 w-full space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-1">
+                    🛍️ {isEn ? 'Recommended Products' : 'Rekomendasi Produk Katalog'} ({m.suggestedProducts.length})
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {m.suggestedProducts.map((p: any) => (
+                      <div
+                        key={p.id}
+                        data-testid={`chat-product-card-${p.id}`}
+                        className="bg-white border border-slate-200 rounded-xl p-2.5 flex flex-col justify-between hover:border-purple-300 transition-all shadow-xs"
+                      >
+                        <div className="flex gap-2 items-start">
+                          <img
+                            src={p.image_url || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200&q=80'}
+                            alt={p.name}
+                            className="w-12 h-12 object-contain bg-slate-50 border border-slate-100 rounded-lg p-0.5 shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-semibold text-xs text-slate-900 leading-snug line-clamp-2">
                               {p.name}
-                            </div>
-                            <div className="text-purple-700 font-bold text-xs">
-                              {formatRupiah(p.price)}
-                            </div>
+                            </h4>
+                            <span className="text-xs font-bold text-blue-600 block mt-0.5">
+                              {formatPrice(p.price, p.currency || (p.sku?.startsWith('EN-') ? 'USD' : 'IDR'))}
+                            </span>
                           </div>
+                        </div>
 
-                          {/* Add to Cart Button */}
+                        <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1 text-[11px]">
+                          <span className="text-slate-400 font-mono">
+                            {p.stock_quantity > 0 ? `Stock: ${p.stock_quantity}` : 'Habis'}
+                          </span>
                           <button
+                            data-testid={`chat-add-to-cart-${p.id}`}
+                            disabled={p.stock_quantity <= 0}
                             onClick={() => {
-                              if (!currentUser) {
-                                showToast(
-                                  '🔒 Silakan login terlebih dahulu untuk memasukkan produk ke keranjang.',
-                                  'info'
-                                );
-                                if (onAuthRequired) onAuthRequired();
-                                return;
-                              }
-                              addToCart(p as any);
+                              addToCart(
+                                {
+                                  id: p.id,
+                                  name: p.name,
+                                  sku: p.sku || `SKU-${p.id}`,
+                                  price: Number(p.price),
+                                  currency: p.currency || (p.sku?.startsWith('EN-') ? 'USD' : 'IDR'),
+                                  image_url: p.image_url || '',
+                                  stock_quantity: Number(p.stock_quantity || 10),
+                                } as any,
+                                1
+                              );
                               showToast(
-                                `${p.sku || p.name} berhasil ditambahkan ke keranjang!`,
+                                `🛒 ${p.name} ${isEn ? 'added to cart!' : 'berhasil dimasukkan ke keranjang!'}`,
                                 'success'
                               );
                             }}
-                            className="w-full bg-slate-900 hover:bg-purple-600 text-white text-[11px] font-semibold py-1.5 px-2 rounded-lg transition-colors cursor-pointer text-center flex items-center justify-center gap-1 shadow-xs"
+                            className={`px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer text-[10px] ${
+                              p.stock_quantity <= 0
+                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                : 'bg-purple-600 hover:bg-purple-700 text-white'
+                            }`}
                           >
-                            <span>+ Masukkan Keranjang</span>
+                            + {t('product.add_to_cart')}
                           </button>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                </div>
+              )}
+            </div>
+          ))}
 
           {loading && (
-            <div className="flex items-center gap-2 text-slate-500 text-xs bg-white border border-slate-200 p-3 rounded-2xl w-fit shadow-xs animate-pulse">
-              <span className="w-3.5 h-3.5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></span>
-              <span>AI Shopper sedang mencari & menjalankan tool...</span>
+            <div className="flex items-center gap-2 text-slate-400 text-xs py-2">
+              <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+              <span>{t('ai_chat.thinking')}</span>
             </div>
           )}
 
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Suggestion Chips */}
-        <div className="px-4 py-2 bg-white border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar">
+        {/* Quick Suggestion Chips */}
+        <div className="px-3 py-2 bg-slate-100 border-t border-slate-200 flex gap-1.5 overflow-x-auto text-[11px]">
           <button
-            onClick={() => handleSend('Cari pakaian wanita di bawah Rp 300.000')}
-            className="whitespace-nowrap bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 px-2.5 py-1 rounded-full cursor-pointer transition-colors"
+            onClick={() => handleSend(t('ai_chat.quick_1'))}
+            className="shrink-0 bg-white hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer"
           >
-            👗 Pakaian wanita &lt; 300rb
+            🎧 {t('ai_chat.quick_1')}
           </button>
           <button
-            onClick={() => handleSend('Cari celana jeans pria di bawah Rp 300.000')}
-            className="whitespace-nowrap bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 px-2.5 py-1 rounded-full cursor-pointer transition-colors"
+            onClick={() => handleSend(t('ai_chat.quick_2'))}
+            className="shrink-0 bg-white hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer"
           >
-            👖 Celana jeans &lt; 300rb
+            👔 {t('ai_chat.quick_2')}
           </button>
           <button
-            onClick={() => handleSend('Rekomendasi biji kopi arabika specialty')}
-            className="whitespace-nowrap bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 px-2.5 py-1 rounded-full cursor-pointer transition-colors"
+            onClick={() => handleSend(t('ai_chat.quick_3'))}
+            className="shrink-0 bg-white hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer"
           >
-            ☕ Kopi Arabika
+            ☕ {t('ai_chat.quick_3')}
+          </button>
+          <button
+            onClick={() => handleSend(t('ai_chat.quick_4'))}
+            className="shrink-0 bg-white hover:bg-slate-200 border border-slate-200 px-2.5 py-1 rounded-full text-slate-700 transition-colors cursor-pointer"
+          >
+            ✨ {t('ai_chat.quick_4')}
           </button>
         </div>
 
         {/* Input Bar */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend();
-          }}
-          className="p-3 bg-white border-t border-slate-200 flex items-center gap-2"
-        >
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Tanyakan rekomendasi, harga, atau stok..."
-            className="flex-1 border border-slate-300 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600"
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || loading}
-            className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
+        <div className="p-3 bg-white border-t border-slate-200">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSend();
+            }}
+            className="flex items-center gap-2"
           >
-            Kirim
-          </button>
-        </form>
+            <input
+              type="text"
+              data-testid="ai-chat-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={t('ai_chat.placeholder')}
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 outline-none focus:bg-white focus:border-purple-600 transition-all"
+            />
+            <button
+              type="submit"
+              data-testid="ai-chat-send"
+              disabled={loading || !input.trim()}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                loading || !input.trim()
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : 'bg-purple-600 hover:bg-purple-700 text-white'
+              }`}
+            >
+              {t('ai_chat.send')}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

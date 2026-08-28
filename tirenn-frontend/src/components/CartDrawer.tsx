@@ -1,6 +1,7 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCart } from '../context/CartContext';
-import { formatRupiah } from '../utils/format';
+import { useCurrency } from '../context/CurrencyContext';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -9,7 +10,9 @@ interface CartDrawerProps {
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheckout }) => {
+  const { t } = useTranslation();
   const { items, cartTotal, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { formatPrice } = useCurrency();
 
   if (!isOpen) return null;
 
@@ -25,7 +28,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
         <div data-testid="cart-drawer" className="w-screen max-w-md bg-white border-l border-slate-200 flex flex-col justify-between p-6 shadow-2xl relative animate-modal">
           {/* Header */}
           <div className="pb-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="font-bold text-lg text-slate-900">Your Cart ({items.length})</h2>
+            <h2 className="font-bold text-lg text-slate-900">{t('cart.title')} ({items.length})</h2>
             <button
               data-testid="cart-drawer-close"
               onClick={onClose}
@@ -40,9 +43,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
             {items.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2">
                 <span className="text-3xl text-slate-300">🛒</span>
-                <h3 className="font-semibold text-sm text-slate-800">Your cart is empty</h3>
+                <h3 className="font-semibold text-sm text-slate-800">{t('cart.empty_title')}</h3>
                 <p className="text-xs text-slate-500">
-                  Select products from the store to add them here.
+                  {t('cart.empty_desc')}
                 </p>
               </div>
             ) : (
@@ -60,7 +63,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
 
                   <div className="flex-1 min-w-0">
                     <h4 className="font-semibold text-xs text-slate-900 truncate">{item.product.name}</h4>
-                    <span className="text-xs text-slate-500 font-medium">{formatRupiah(item.product.price)}</span>
+                    <span className="text-xs text-slate-500 font-medium">{formatPrice(item.product.price)}</span>
 
                     <div className="flex items-center gap-2 mt-1.5">
                       <button
@@ -85,14 +88,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
 
                   <div className="text-right flex flex-col justify-between items-end self-stretch">
                     <span className="font-bold text-xs text-slate-900">
-                      {formatRupiah(item.product.price * item.quantity)}
+                      {formatPrice(item.product.price * item.quantity)}
                     </span>
                     <button
                       data-testid={`cart-remove-${item.product.id}`}
                       onClick={() => removeFromCart(item.product.id)}
                       className="text-[11px] text-slate-400 hover:text-rose-600 cursor-pointer"
                     >
-                      Remove
+                      ✕
                     </button>
                   </div>
                 </div>
@@ -104,9 +107,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
           {items.length > 0 && (
             <div className="pt-4 border-t border-slate-100 space-y-3">
               <div className="flex justify-between text-sm font-bold text-slate-900">
-                <span>Total Amount:</span>
+                <span>{t('cart.total')}:</span>
                 <span data-testid="cart-total-price" className="text-base text-blue-600 font-extrabold">
-                  {formatRupiah(cartTotal)}
+                  {formatPrice(cartTotal)}
                 </span>
               </div>
 
@@ -118,14 +121,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
                 }}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm py-2.5 rounded-lg shadow-sm cursor-pointer transition-colors"
               >
-                Proceed to Checkout
+                {t('cart.checkout')}
               </button>
 
               <button
                 onClick={clearCart}
                 className="w-full text-center text-xs text-slate-400 hover:text-slate-600 cursor-pointer pt-1"
               >
-                Clear Cart
+                {t('cart.clear')}
               </button>
             </div>
           )}

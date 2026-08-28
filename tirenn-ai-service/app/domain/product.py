@@ -6,7 +6,10 @@ class Product(BaseModel):
     name: str
     sku: str
     category_id: int
+    sub_category_id: Optional[int] = None
+    sub_category_name: Optional[str] = ""
     price: float
+    currency: str = "IDR"
     image_url: str = ""
     stock_quantity: int = 0
     badge: str = ""
@@ -18,7 +21,10 @@ class ScoredProduct(BaseModel):
     name: str
     sku: str
     category_id: int
+    sub_category_id: Optional[int] = None
+    sub_category_name: Optional[str] = ""
     price: float
+    currency: str = "IDR"
     image_url: str = ""
     stock_quantity: int = 0
     score: float = 0.0
@@ -28,9 +34,12 @@ class ProductIndexItem(BaseModel):
     name: str
     category_id: int
     category_name: Optional[str] = ""
+    sub_category_id: Optional[int] = None
+    sub_category_name: Optional[str] = ""
     sku: str = ""
     description: Optional[str] = ""
     price: float = 0.0
+    currency: str = "IDR"
     image_url: Optional[str] = ""
     badge: Optional[str] = ""
     rating: Optional[float] = 5.0

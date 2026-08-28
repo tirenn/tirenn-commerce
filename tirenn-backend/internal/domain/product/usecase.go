@@ -24,6 +24,9 @@ type UseCase interface {
 
 	CreateCategory(ctx context.Context, req *CreateCategoryRequest) (*Category, error)
 	ListCategories(ctx context.Context) ([]Category, error)
+
+	CreateSubCategory(ctx context.Context, req *CreateSubCategoryRequest) (*SubCategory, error)
+	ListSubCategories(ctx context.Context, categoryID uint) ([]SubCategory, error)
 }
 
 type useCase struct {
@@ -68,14 +71,21 @@ func (u *useCase) CreateProduct(ctx context.Context, req *CreateProductRequest) 
 		lowThreshold = req.LowStockThreshold
 	}
 
+	currency := "IDR"
+	if req.Currency != "" {
+		currency = req.Currency
+	}
+
 	product := &Product{
 		CategoryID:        req.CategoryID,
 		Category:          *cat,
+		SubCategoryID:     req.SubCategoryID,
 		Name:              req.Name,
 		Slug:              slug,
 		SKU:               strings.ToUpper(strings.TrimSpace(req.SKU)),
 		Description:       req.Description,
 		Price:             req.Price,
+		Currency:          currency,
 		StockQuantity:     req.StockQuantity,
 		LowStockThreshold: lowThreshold,
 		ImageURL:          req.ImageURL,
@@ -100,74 +110,81 @@ func (u *useCase) CreateProduct(ctx context.Context, req *CreateProductRequest) 
 }
 
 func (u *useCase) GetProductByID(ctx context.Context, id uint) (*Product, error) {
-	product, err := u.repo.FindByID(ctx, id)
+	p, err := u.repo.FindByID(ctx, id)
 	if err != nil {
-		logger.Warn(ctx, "usecase", fmt.Sprintf("product with ID %d not found", id), err)
-		return nil, err
+		logger.Warn(ctx, "usecase", fmt.Sprintf("product not found with id %d", id), err)
+		return nil, errors.New("product not found")
 	}
-	return product, nil
+	return p, nil
 }
 
 func (u *useCase) GetProductBySlug(ctx context.Context, slug string) (*Product, error) {
-	product, err := u.repo.FindBySlug(ctx, slug)
+	p, err := u.repo.FindBySlug(ctx, slug)
 	if err != nil {
-		logger.Warn(ctx, "usecase", fmt.Sprintf("product with slug %s not found", slug), err)
-		return nil, err
+		logger.Warn(ctx, "usecase", fmt.Sprintf("product not found with slug %s", slug), err)
+		return nil, errors.New("product not found")
 	}
-	return product, nil
+	return p, nil
 }
 
 func (u *useCase) UpdateProduct(ctx context.Context, id uint, req *UpdateProductRequest) (*Product, error) {
-	product, err := u.repo.FindByID(ctx, id)
+	p, err := u.repo.FindByID(ctx, id)
 	if err != nil {
-		logger.Error(ctx, "usecase", fmt.Sprintf("failed to find product %d for update", id), err)
+		logger.Warn(ctx, "usecase", fmt.Sprintf("failed to find product for update with id %d", id), err)
 		return nil, errors.New("product not found")
 	}
 
 	if req.CategoryID != nil {
 		cat, err := u.repo.FindCategoryByID(ctx, *req.CategoryID)
 		if err != nil {
-			logger.Error(ctx, "usecase", fmt.Sprintf("category %d does not exist", *req.CategoryID), err)
-			return nil, errors.New("selected category does not exist")
+			logger.Error(ctx, "usecase", "category does not exist for update", err)
+			return nil, errors.New("category does not exist")
 		}
-		product.CategoryID = *req.CategoryID
-		product.Category = *cat
+		p.CategoryID = *req.CategoryID
+		p.Category = *cat
 	}
 
-	if req.Name != nil && *req.Name != "" {
-		product.Name = *req.Name
+	if req.SubCategoryID != nil {
+		p.SubCategoryID = req.SubCategoryID
 	}
-	if req.SKU != nil && *req.SKU != "" {
-		product.SKU = strings.ToUpper(strings.TrimSpace(*req.SKU))
+
+	if req.Name != nil {
+		p.Name = *req.Name
+	}
+	if req.SKU != nil {
+		p.SKU = strings.ToUpper(strings.TrimSpace(*req.SKU))
 	}
 	if req.Description != nil {
-		product.Description = *req.Description
+		p.Description = *req.Description
 	}
-	if req.Price != nil && *req.Price > 0 {
-		product.Price = *req.Price
+	if req.Price != nil {
+		p.Price = *req.Price
 	}
-	if req.StockQuantity != nil && *req.StockQuantity >= 0 {
-		product.StockQuantity = *req.StockQuantity
+	if req.Currency != nil {
+		p.Currency = *req.Currency
 	}
-	if req.LowStockThreshold != nil && *req.LowStockThreshold >= 0 {
-		product.LowStockThreshold = *req.LowStockThreshold
+	if req.StockQuantity != nil {
+		p.StockQuantity = *req.StockQuantity
+	}
+	if req.LowStockThreshold != nil {
+		p.LowStockThreshold = *req.LowStockThreshold
 	}
 	if req.ImageURL != nil {
-		product.ImageURL = *req.ImageURL
+		p.ImageURL = *req.ImageURL
 	}
 	if req.IsActive != nil {
-		product.IsActive = *req.IsActive
+		p.IsActive = *req.IsActive
 	}
 	if req.Badge != nil {
-		product.Badge = *req.Badge
+		p.Badge = *req.Badge
 	}
 
-	if err := u.repo.Update(ctx, product); err != nil {
+	if err := u.repo.Update(ctx, p); err != nil {
 		logger.Error(ctx, "usecase", fmt.Sprintf("failed to update product %d in repository", id), err)
 		return nil, err
 	}
 
-	updated, err := u.repo.FindByID(ctx, id)
+	updated, err := u.repo.FindByID(ctx, p.ID)
 	if err == nil && u.aiClient != nil {
 		go func() {
 			_ = u.aiClient.SyncProducts(context.Background(), []Product{*updated})
@@ -180,59 +197,39 @@ func (u *useCase) UpdateProduct(ctx context.Context, id uint, req *UpdateProduct
 func (u *useCase) DeleteProduct(ctx context.Context, id uint) error {
 	_, err := u.repo.FindByID(ctx, id)
 	if err != nil {
-		logger.Error(ctx, "usecase", fmt.Sprintf("failed to find product %d for deletion", id), err)
+		logger.Warn(ctx, "usecase", fmt.Sprintf("product not found for deletion with id %d", id), err)
 		return errors.New("product not found")
 	}
+
 	if err := u.repo.Delete(ctx, id); err != nil {
-		logger.Error(ctx, "usecase", fmt.Sprintf("failed to delete product %d from repository", id), err)
+		logger.Error(ctx, "usecase", fmt.Sprintf("failed to delete product %d in repository", id), err)
 		return err
 	}
 	return nil
 }
 
 func (u *useCase) ListProducts(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error) {
-	// If semantic search is requested and search text is present, attempt vector search
-	if filter.Semantic && strings.TrimSpace(filter.Search) != "" && u.aiClient != nil {
-		limit := filter.Limit
-		if limit < 1 {
-			limit = 12
-		}
-		ids, err := u.aiClient.SearchSemantic(ctx, filter.Search, filter.CategoryID, limit)
-		if err == nil && len(ids) > 0 {
-			products, err := u.repo.FindByIDs(ctx, ids)
-			if err == nil && len(products) > 0 {
-				return products, int64(len(products)), nil
-			}
-		}
-		logger.Warn(ctx, "usecase", "semantic search fallback to standard full-text query", err)
-	}
-
-	products, total, err := u.repo.List(ctx, filter)
-	if err != nil {
-		logger.Error(ctx, "usecase", "failed to list products from repository", err)
-		return nil, 0, err
-	}
-	return products, total, nil
+	return u.repo.List(ctx, filter)
 }
 
 func (u *useCase) AdjustStock(ctx context.Context, productID uint, req *StockAdjustRequest, adminID uint) (*Product, error) {
-	product, err := u.repo.FindByID(ctx, productID)
+	p, err := u.repo.FindByID(ctx, productID)
 	if err != nil {
-		logger.Error(ctx, "usecase", fmt.Sprintf("failed to find product %d for stock adjustment", productID), err)
+		logger.Warn(ctx, "usecase", fmt.Sprintf("product not found for stock adjustment with id %d", productID), err)
 		return nil, errors.New("product not found")
 	}
 
-	prevStock := product.StockQuantity
-	newStock := prevStock
+	prevStock := p.StockQuantity
+	var newStock int
 
 	switch req.Type {
 	case "ADD":
 		newStock = prevStock + req.Amount
 	case "SUBTRACT":
 		if prevStock < req.Amount {
-			errInsufficient := errors.New("insufficient stock to subtract")
-			logger.Warn(ctx, "usecase", fmt.Sprintf("product %d has only %d stock, requested subtraction of %d", productID, prevStock, req.Amount), errInsufficient)
-			return nil, errInsufficient
+			errStock := errors.New("insufficient stock to subtract")
+			logger.Warn(ctx, "usecase", fmt.Sprintf("insufficient stock for product %d", productID), errStock)
+			return nil, errStock
 		}
 		newStock = prevStock - req.Amount
 	case "SET":
@@ -293,4 +290,30 @@ func (u *useCase) ListCategories(ctx context.Context) ([]Category, error) {
 		return nil, err
 	}
 	return categories, nil
+}
+
+func (u *useCase) CreateSubCategory(ctx context.Context, req *CreateSubCategoryRequest) (*SubCategory, error) {
+	slug := slugify(req.Name)
+	subCategory := &SubCategory{
+		CategoryID:  req.CategoryID,
+		Name:        req.Name,
+		Slug:        slug,
+		Description: req.Description,
+		Icon:        req.Icon,
+	}
+
+	if err := u.repo.CreateSubCategory(ctx, subCategory); err != nil {
+		logger.Error(ctx, "usecase", "failed to create sub category in repository", err)
+		return nil, err
+	}
+	return subCategory, nil
+}
+
+func (u *useCase) ListSubCategories(ctx context.Context, categoryID uint) ([]SubCategory, error) {
+	subCategories, err := u.repo.ListSubCategories(ctx, categoryID)
+	if err != nil {
+		logger.Error(ctx, "usecase", "failed to list sub categories in repository", err)
+		return nil, err
+	}
+	return subCategories, nil
 }

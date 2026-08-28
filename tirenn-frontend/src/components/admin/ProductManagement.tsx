@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { StockAdjustmentModal } from './StockAdjustmentModal';
 import { Pagination } from '../Pagination';
-import { formatRupiah } from '../../utils/format';
 import type { Product, Category } from '../../types';
 
 const ADMIN_PRODUCTS_PER_PAGE = 15;
 
 export const ProductManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { formatPrice } = useCurrency();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -28,6 +29,7 @@ export const ProductManagement: React.FC = () => {
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
   const [categoryId, setCategoryId] = useState<number>(1);
+  const [subCategoryId, setSubCategoryId] = useState<number | undefined>(undefined);
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [stockQuantity, setStockQuantity] = useState('');
@@ -51,7 +53,7 @@ export const ProductManagement: React.FC = () => {
     if (prodRes.success && Array.isArray(prodRes.data)) {
       setProducts(prodRes.data);
       setTotalProducts(prodRes.meta?.total_rows || prodRes.data.length);
-      setTotalPages(prodRes.meta?.total_pages || 1);
+      setTotalPages(prodRes.meta?.total_page || 1);
     }
     if (catRes.success && Array.isArray(catRes.data)) {
       setCategories(catRes.data);
@@ -70,7 +72,9 @@ export const ProductManagement: React.FC = () => {
     setEditingProduct(null);
     setName('');
     setSku(`SKU-${Math.floor(1000 + Math.random() * 9000)}`);
-    setCategoryId(categories[0]?.id || 1);
+    const defaultCat = categories[0]?.id || 1;
+    setCategoryId(defaultCat);
+    setSubCategoryId(categories[0]?.sub_categories?.[0]?.id);
     setDescription('');
     setPrice('150000');
     setStockQuantity('20');
@@ -85,6 +89,7 @@ export const ProductManagement: React.FC = () => {
     setName(p.name);
     setSku(p.sku);
     setCategoryId(p.category_id);
+    setSubCategoryId(p.sub_category_id);
     setDescription(p.description);
     setPrice(p.price.toString());
     setStockQuantity(p.stock_quantity.toString());
@@ -101,6 +106,7 @@ export const ProductManagement: React.FC = () => {
       name,
       sku,
       category_id: Number(categoryId),
+      sub_category_id: subCategoryId ? Number(subCategoryId) : null,
       description,
       price: parseFloat(price) || 0,
       stock_quantity: parseInt(stockQuantity, 10) || 0,
@@ -143,6 +149,8 @@ export const ProductManagement: React.FC = () => {
     }
   };
 
+  const currentCategory = categories.find((c) => c.id === categoryId);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -177,7 +185,7 @@ export const ProductManagement: React.FC = () => {
             <thead className="bg-slate-50 border-b border-slate-200 text-[11px] uppercase font-bold text-slate-400">
               <tr>
                 <th className="p-3.5">Product</th>
-                <th className="p-3.5">Category</th>
+                <th className="p-3.5">Category / Subcategory</th>
                 <th className="p-3.5">Price</th>
                 <th className="p-3.5">Stock</th>
                 <th className="p-3.5">Status</th>
@@ -215,8 +223,13 @@ export const ProductManagement: React.FC = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="p-3.5">{p.category?.name || 'General'}</td>
-                      <td className="p-3.5 font-bold text-slate-900">{formatRupiah(p.price)}</td>
+                      <td className="p-3.5">
+                        <div className="font-medium text-slate-800">{p.category?.name || 'General'}</div>
+                        {p.sub_category?.name && (
+                          <div className="text-[10px] text-blue-600 font-semibold">{p.sub_category.name}</div>
+                        )}
+                      </td>
+                      <td className="p-3.5 font-bold text-slate-900">{formatPrice(p.price, p.currency)}</td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-1.5">
                           <span
@@ -330,7 +343,12 @@ export const ProductManagement: React.FC = () => {
                   <select
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 outline-none"
                     value={categoryId}
-                    onChange={(e) => setCategoryId(Number(e.target.value))}
+                    onChange={(e) => {
+                      const newCatId = Number(e.target.value);
+                      setCategoryId(newCatId);
+                      const cat = categories.find((c) => c.id === newCatId);
+                      setSubCategoryId(cat?.sub_categories?.[0]?.id);
+                    }}
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -341,9 +359,27 @@ export const ProductManagement: React.FC = () => {
                 </div>
               </div>
 
+              {currentCategory?.sub_categories && currentCategory.sub_categories.length > 0 && (
+                <div>
+                  <label className="font-medium text-slate-700 block mb-1">Subcategory</label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 outline-none"
+                    value={subCategoryId || ''}
+                    onChange={(e) => setSubCategoryId(e.target.value ? Number(e.target.value) : undefined)}
+                  >
+                    <option value="">-- No Subcategory --</option>
+                    {currentCategory.sub_categories.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="font-medium text-slate-700 block mb-1">Price (Rp)</label>
+                  <label className="font-medium text-slate-700 block mb-1">Base Price (IDR)</label>
                   <input
                     type="number"
                     step="1000"

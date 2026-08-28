@@ -1,5 +1,13 @@
 export type UserRole = 'ADMIN' | 'CUSTOMER';
 
+export type AppView =
+  | 'storefront'
+  | 'my-orders'
+  | 'admin-dashboard'
+  | 'admin-products'
+  | 'admin-orders'
+  | 'admin-customers';
+
 export interface User {
   id: number;
   name: string;
@@ -11,12 +19,34 @@ export interface User {
   created_at: string;
 }
 
+export interface AuthResponse {
+  user: User;
+  token: string;
+}
+
+export interface CustomerWithStats extends User {
+  total_orders: number;
+  total_spent: number;
+  last_order_at?: string;
+}
+
+export interface SubCategory {
+  id: number;
+  category_id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  created_at?: string;
+}
+
 export interface Category {
   id: number;
   name: string;
   slug: string;
   description: string;
   icon?: string;
+  sub_categories?: SubCategory[];
   created_at: string;
 }
 
@@ -24,11 +54,14 @@ export interface Product {
   id: number;
   category_id: number;
   category?: Category;
+  sub_category_id?: number;
+  sub_category?: SubCategory;
   name: string;
   slug: string;
   sku: string;
   description: string;
   price: number;
+  currency?: string;
   stock_quantity: number;
   low_stock_threshold: number;
   image_url: string;
@@ -49,6 +82,7 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  currency?: string;
 }
 
 export interface Order {
@@ -57,6 +91,7 @@ export interface Order {
   user_id: number;
   user?: User;
   total_amount: number;
+  currency?: string;
   status: 'PENDING' | 'PAID' | 'PROCESSING' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED';
   shipping_name: string;
   shipping_phone: string;
@@ -98,64 +133,35 @@ export interface DashboardData {
     product_id: number;
     product_name: string;
     product_sku: string;
-    product_image: string;
-    total_sold: number;
-    total_revenue: number;
-  }>;
-  recent_orders: Array<{
-    id: number;
-    order_number: string;
-    customer_name: string;
-    total_amount: number;
-    status: string;
-    created_at: string;
-  }>;
-  low_stock_alerts: Array<{
-    id: number;
-    product_name: string;
-    product_sku: string;
-    stock_quantity: number;
-    low_stock_threshold: number;
+    units_sold?: number;
+    total_sold?: number;
+    revenue?: number;
+    total_revenue?: number;
   }>;
 }
 
-export interface CustomerWithStats {
-  id: number;
-  name: string;
-  email: string;
-  phone?: string;
-  address?: string;
-  status: 'ACTIVE' | 'SUSPENDED';
-  total_orders: number;
-  total_spent: number;
-  last_order_at?: string;
-  created_at: string;
-}
-
-export interface PaginationMeta {
-  page: number;
-  limit: number;
-  total_rows: number;
-  total_pages: number;
-}
-
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T> {
   success: boolean;
   message?: string;
   data?: T;
+  meta?: {
+    page: number;
+    limit: number;
+    total_rows: number;
+    total_page?: number;
+    total_pages?: number;
+  };
   error?: string;
-  meta?: PaginationMeta;
 }
 
-export interface AuthResponse {
-  token: string;
-  user: User;
+export interface ProductFilters {
+  category_id?: number;
+  sub_category_id?: number;
+  search?: string;
+  sort?: string;
+  min_price?: number;
+  max_price?: number;
+  in_stock?: boolean;
+  page?: number;
+  limit?: number;
 }
-
-export type AppView = 
-  | 'storefront' 
-  | 'my-orders' 
-  | 'admin-dashboard' 
-  | 'admin-products' 
-  | 'admin-orders' 
-  | 'admin-customers';

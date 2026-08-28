@@ -82,7 +82,7 @@ func (h *Handler) AdminListProducts(c *gin.Context) {
 // GetProduct retrieves single product by ID or Slug
 func (h *Handler) GetProduct(c *gin.Context) {
 	param := c.Param("id")
-	
+
 	// If param is numeric, fetch by ID, otherwise by Slug
 	if id, err := strconv.ParseUint(param, 10, 32); err == nil {
 		product, err := h.useCase.GetProductByID(c.Request.Context(), uint(id))
@@ -144,7 +144,7 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 	utils.Success(c, http.StatusOK, "Product updated successfully", product)
 }
 
-// DeleteProduct deletes a product (Admin)
+// DeleteProduct soft/hard deletes a product (Admin)
 func (h *Handler) DeleteProduct(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
@@ -161,7 +161,7 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 	utils.Success(c, http.StatusOK, "Product deleted successfully", nil)
 }
 
-// AdjustStock adjusts product stock count (Admin)
+// AdjustStock handles stock adjustment with reason log (Admin)
 func (h *Handler) AdjustStock(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
@@ -170,13 +170,18 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 		return
 	}
 
-	adminIDVal, _ := c.Get("userID")
-	adminID, _ := adminIDVal.(uint)
-
 	var req StockAdjustRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.BadRequest(c, "Invalid stock adjustment payload", err.Error())
 		return
+	}
+
+	// Retrieve Admin ID from Context
+	adminID := uint(1)
+	if val, exists := c.Get("user_id"); exists {
+		if uid, ok := val.(uint); ok {
+			adminID = uid
+		}
 	}
 
 	product, err := h.useCase.AdjustStock(c.Request.Context(), uint(id), &req, adminID)
@@ -232,4 +237,40 @@ func (h *Handler) CreateCategory(c *gin.Context) {
 	}
 
 	utils.Success(c, http.StatusCreated, "Category created successfully", category)
+}
+
+// ListSubCategories lists subcategories (optionally filtered by category_id)
+func (h *Handler) ListSubCategories(c *gin.Context) {
+	catIDStr := c.Query("category_id")
+	var catID uint
+	if catIDStr != "" {
+		if val, err := strconv.ParseUint(catIDStr, 10, 32); err == nil {
+			catID = uint(val)
+		}
+	}
+
+	subCategories, err := h.useCase.ListSubCategories(c.Request.Context(), catID)
+	if err != nil {
+		utils.InternalServerError(c, "Failed to fetch sub-categories", err.Error())
+		return
+	}
+
+	utils.Success(c, http.StatusOK, "Sub-categories retrieved successfully", subCategories)
+}
+
+// CreateSubCategory creates a new subcategory (Admin)
+func (h *Handler) CreateSubCategory(c *gin.Context) {
+	var req CreateSubCategoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "Invalid sub-category payload", err.Error())
+		return
+	}
+
+	subCategory, err := h.useCase.CreateSubCategory(c.Request.Context(), &req)
+	if err != nil {
+		utils.BadRequest(c, err.Error(), nil)
+		return
+	}
+
+	utils.Success(c, http.StatusCreated, "Sub-category created successfully", subCategory)
 }

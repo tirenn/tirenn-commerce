@@ -87,6 +87,7 @@ class ProductRepository:
         query_vector: List[float],
         query_text: str,
         category_id: int = 0,
+        sub_category_id: int = 0,
         score_threshold: float = 0.55,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
@@ -100,30 +101,36 @@ class ProductRepository:
         vec_weight = settings.HYBRID_VECTOR_WEIGHT
         text_weight = settings.HYBRID_TEXT_WEIGHT
 
-        if enable_hybrid:
+        if enable_hybrid and clean_q:
             score_expr = f"""
-                ROUND(
-                    (
-                        {vec_weight} * (1 - (p.embedding <=> %s::vector)) + 
-                        {text_weight} * similarity(p.name || ' ' || COALESCE(p.description, ''), %s)
-                    )::numeric, 4
-                )
+                ROUND((
+                    ({vec_weight} * (1 - (p.embedding <=> %s::vector))) + 
+                    ({text_weight} * similarity(p.name || ' ' || COALESCE(p.description, '') || ' ' || COALESCE(sc.name, ''), %s))
+                )::numeric, 4)
             """
-            order_expr = f"({vec_weight} * (1 - (p.embedding <=> %s::vector)) + {text_weight} * similarity(p.name || ' ' || COALESCE(p.description, ''), %s)) DESC"
+            order_expr = f"""
+                (({vec_weight} * (1 - (p.embedding <=> %s::vector))) + 
+                 ({text_weight} * similarity(p.name || ' ' || COALESCE(p.description, '') || ' ' || COALESCE(sc.name, ''), %s))) DESC
+            """
             sql = f"""
                 SELECT 
                     p.id,
                     p.name,
                     p.sku,
                     p.category_id,
+                    p.sub_category_id,
+                    COALESCE(sc.name, '') AS sub_category_name,
                     p.price,
+                    COALESCE(p.currency, 'IDR') AS currency,
                     COALESCE(p.image_url, '') AS image_url,
                     p.stock_quantity,
                     {score_expr} AS score
                 FROM products p
+                LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
                 WHERE p.is_active = true
                   AND p.embedding IS NOT NULL
                   AND (%s = 0 OR p.category_id = %s)
+                  AND (%s = 0 OR p.sub_category_id = %s)
                   AND (%s::numeric IS NULL OR p.price >= %s::numeric)
                   AND (%s::numeric IS NULL OR p.price <= %s::numeric)
                   AND (%s::boolean IS NULL OR %s::boolean = false OR p.stock_quantity > 0)
@@ -134,6 +141,7 @@ class ProductRepository:
             params = (
                 query_vec_str, clean_q,
                 category_id, category_id,
+                sub_category_id, sub_category_id,
                 min_price, min_price,
                 max_price, max_price,
                 in_stock, in_stock,
@@ -149,14 +157,19 @@ class ProductRepository:
                     p.name,
                     p.sku,
                     p.category_id,
+                    p.sub_category_id,
+                    COALESCE(sc.name, '') AS sub_category_name,
                     p.price,
+                    COALESCE(p.currency, 'IDR') AS currency,
                     COALESCE(p.image_url, '') AS image_url,
                     p.stock_quantity,
                     {score_expr} AS score
                 FROM products p
+                LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
                 WHERE p.is_active = true
                   AND p.embedding IS NOT NULL
                   AND (%s = 0 OR p.category_id = %s)
+                  AND (%s = 0 OR p.sub_category_id = %s)
                   AND (%s::numeric IS NULL OR p.price >= %s::numeric)
                   AND (%s::numeric IS NULL OR p.price <= %s::numeric)
                   AND (%s::boolean IS NULL OR %s::boolean = false OR p.stock_quantity > 0)
@@ -167,6 +180,7 @@ class ProductRepository:
             params = (
                 query_vec_str,
                 category_id, category_id,
+                sub_category_id, sub_category_id,
                 min_price, min_price,
                 max_price, max_price,
                 in_stock, in_stock,
@@ -188,7 +202,10 @@ class ProductRepository:
                                 name=r["name"],
                                 sku=r["sku"],
                                 category_id=r["category_id"],
+                                sub_category_id=r.get("sub_category_id"),
+                                sub_category_name=r.get("sub_category_name", ""),
                                 price=float(r["price"]),
+                                currency=r.get("currency", "IDR"),
                                 image_url=r["image_url"],
                                 stock_quantity=int(r["stock_quantity"] or 0),
                                 score=float(r["score"])
@@ -202,10 +219,14 @@ class ProductRepository:
     def get_product_by_id(self, product_id: int) -> Optional[Product]:
         """Direct SQL lookup for product details by ID"""
         sql = """
-            SELECT id, name, sku, category_id, price, COALESCE(image_url, '') AS image_url,
-                   stock_quantity, badge, description, is_active
-            FROM products
-            WHERE id = %s AND is_active = true
+            SELECT p.id, p.name, p.sku, p.category_id, p.sub_category_id,
+                   COALESCE(sc.name, '') AS sub_category_name,
+                   p.price, COALESCE(p.currency, 'IDR') AS currency,
+                   COALESCE(p.image_url, '') AS image_url,
+                   p.stock_quantity, p.badge, p.description, p.is_active
+            FROM products p
+            LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+            WHERE p.id = %s AND p.is_active = true
             LIMIT 1;
         """
         try:
@@ -219,7 +240,10 @@ class ProductRepository:
                             name=row["name"],
                             sku=row["sku"],
                             category_id=row["category_id"],
+                            sub_category_id=row.get("sub_category_id"),
+                            sub_category_name=row.get("sub_category_name", ""),
                             price=float(row["price"]),
+                            currency=row.get("currency", "IDR"),
                             image_url=row["image_url"],
                             stock_quantity=int(row["stock_quantity"] or 0),
                             badge=row["badge"] or "",
@@ -235,16 +259,20 @@ class ProductRepository:
         """Direct SQL lookup by SKU or exact/ILIKE product name"""
         clean_q = query.strip()
         sql = """
-            SELECT id, name, sku, category_id, price, COALESCE(image_url, '') AS image_url,
-                   stock_quantity, badge, description, is_active
-            FROM products
-            WHERE is_active = true
+            SELECT p.id, p.name, p.sku, p.category_id, p.sub_category_id,
+                   COALESCE(sc.name, '') AS sub_category_name,
+                   p.price, COALESCE(p.currency, 'IDR') AS currency,
+                   COALESCE(p.image_url, '') AS image_url,
+                   p.stock_quantity, p.badge, p.description, p.is_active
+            FROM products p
+            LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+            WHERE p.is_active = true
               AND (
-                UPPER(sku) = UPPER(%s)
-                OR name ILIKE %s
-                OR similarity(name, %s) > 0.4
+                UPPER(p.sku) = UPPER(%s)
+                OR p.name ILIKE %s
+                OR similarity(p.name, %s) > 0.4
               )
-            ORDER BY (UPPER(sku) = UPPER(%s)) DESC, similarity(name, %s) DESC
+            ORDER BY (UPPER(p.sku) = UPPER(%s)) DESC, similarity(p.name, %s) DESC
             LIMIT 1;
         """
         try:
@@ -259,7 +287,10 @@ class ProductRepository:
                             name=row["name"],
                             sku=row["sku"],
                             category_id=row["category_id"],
+                            sub_category_id=row.get("sub_category_id"),
+                            sub_category_name=row.get("sub_category_name", ""),
                             price=float(row["price"]),
+                            currency=row.get("currency", "IDR"),
                             image_url=row["image_url"],
                             stock_quantity=int(row["stock_quantity"] or 0),
                             badge=row["badge"] or "",
@@ -284,4 +315,19 @@ class ProductRepository:
             return {}
         except Exception as e:
             logger.error(f"Error fetching categories from database: {e}", exc_info=True)
+            return {}
+
+    def get_sub_categories_map(self) -> Dict[int, str]:
+        """Fetch all sub-categories dynamically from PostgreSQL database"""
+        sql = "SELECT id, name FROM sub_categories ORDER BY id ASC;"
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(sql)
+                    rows = cur.fetchall()
+                    if rows:
+                        return {r["id"]: r["name"] for r in rows}
+            return {}
+        except Exception as e:
+            logger.error(f"Error fetching sub-categories from database: {e}", exc_info=True)
             return {}

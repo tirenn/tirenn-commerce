@@ -7,8 +7,25 @@ import (
 )
 
 type Category struct {
+	ID            uint          `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name          string        `gorm:"size:100;not null;uniqueIndex" json:"name"`
+	Slug          string        `gorm:"size:120;not null;uniqueIndex" json:"slug"`
+	Description   string        `gorm:"type:text" json:"description"`
+	Icon          string        `gorm:"size:50" json:"icon"`
+	SubCategories []SubCategory `gorm:"foreignKey:CategoryID;constraint:OnDelete:CASCADE" json:"sub_categories,omitempty"`
+	CreatedAt     time.Time     `json:"created_at"`
+	UpdatedAt     time.Time     `json:"updated_at"`
+}
+
+func (Category) TableName() string {
+	return "categories"
+}
+
+type SubCategory struct {
 	ID          uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name        string    `gorm:"size:100;not null;uniqueIndex" json:"name"`
+	CategoryID  uint      `gorm:"not null;index" json:"category_id"`
+	Category    *Category `gorm:"foreignKey:CategoryID;constraint:OnDelete:CASCADE" json:"category,omitempty"`
+	Name        string    `gorm:"size:100;not null" json:"name"`
 	Slug        string    `gorm:"size:120;not null;uniqueIndex" json:"slug"`
 	Description string    `gorm:"type:text" json:"description"`
 	Icon        string    `gorm:"size:50" json:"icon"`
@@ -16,19 +33,22 @@ type Category struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-func (Category) TableName() string {
-	return "categories"
+func (SubCategory) TableName() string {
+	return "sub_categories"
 }
 
 type Product struct {
 	ID                uint             `gorm:"primaryKey;autoIncrement" json:"id"`
 	CategoryID        uint             `gorm:"not null;index" json:"category_id"`
 	Category          Category         `gorm:"foreignKey:CategoryID;constraint:OnDelete:CASCADE" json:"category,omitempty"`
+	SubCategoryID     *uint            `gorm:"index" json:"sub_category_id,omitempty"`
+	SubCategory       *SubCategory     `gorm:"foreignKey:SubCategoryID;constraint:OnDelete:SET NULL" json:"sub_category,omitempty"`
 	Name              string           `gorm:"size:200;not null;index" json:"name"`
 	Slug              string           `gorm:"size:220;not null;uniqueIndex" json:"slug"`
 	SKU               string           `gorm:"size:100;not null;uniqueIndex" json:"sku"`
 	Description       string           `gorm:"type:text" json:"description"`
 	Price             float64          `gorm:"type:decimal(12,2);not null;default:0.00" json:"price"`
+	Currency          string           `gorm:"size:10;not null;default:'IDR'" json:"currency"`
 	StockQuantity     int              `gorm:"not null;default:0" json:"stock_quantity"`
 	LowStockThreshold int              `gorm:"not null;default:5" json:"low_stock_threshold"`
 	ImageURL          string           `gorm:"size:500" json:"image_url"`
@@ -62,10 +82,12 @@ func (StockAdjustmentLog) TableName() string {
 
 type CreateProductRequest struct {
 	CategoryID        uint    `json:"category_id" binding:"required"`
+	SubCategoryID     *uint   `json:"sub_category_id"`
 	Name              string  `json:"name" binding:"required,min=2,max=200"`
 	SKU               string  `json:"sku" binding:"required,min=2,max=100"`
 	Description       string  `json:"description"`
 	Price             float64 `json:"price" binding:"required,gt=0"`
+	Currency          string  `json:"currency"`
 	StockQuantity     int     `json:"stock_quantity" binding:"gte=0"`
 	LowStockThreshold int     `json:"low_stock_threshold" binding:"gte=0"`
 	ImageURL          string  `json:"image_url"`
@@ -75,10 +97,12 @@ type CreateProductRequest struct {
 
 type UpdateProductRequest struct {
 	CategoryID        *uint    `json:"category_id"`
+	SubCategoryID     *uint    `json:"sub_category_id"`
 	Name              *string  `json:"name"`
 	SKU               *string  `json:"sku"`
 	Description       *string  `json:"description"`
 	Price             *float64 `json:"price"`
+	Currency          *string  `json:"currency"`
 	StockQuantity     *int     `json:"stock_quantity"`
 	LowStockThreshold *int     `json:"low_stock_threshold"`
 	ImageURL          *string  `json:"image_url"`
@@ -98,15 +122,24 @@ type CreateCategoryRequest struct {
 	Icon        string `json:"icon"`
 }
 
+type CreateSubCategoryRequest struct {
+	CategoryID  uint   `json:"category_id" binding:"required"`
+	Name        string `json:"name" binding:"required,min=2,max=100"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+}
+
 type ProductFilterQuery struct {
-	Search     string  `form:"search"`
-	Semantic   bool    `form:"semantic"`
-	CategoryID uint    `form:"category_id"`
-	MinPrice   float64 `form:"min_price"`
-	MaxPrice   float64 `form:"max_price"`
-	InStock    *bool   `form:"in_stock"`
-	Sort       string  `form:"sort"` // "price_asc", "price_desc", "newest", "name_asc"
-	Page       int     `form:"page,default=1"`
-	Limit      int     `form:"limit,default=12"`
-	IsAdmin    bool    `form:"-"`
+	Search        string  `form:"search"`
+	Semantic      bool    `form:"semantic"`
+	CategoryID    uint    `form:"category_id"`
+	SubCategoryID uint    `form:"sub_category_id"`
+	MinPrice      float64 `form:"min_price"`
+	MaxPrice      float64 `form:"max_price"`
+	Currency      string  `form:"currency"`
+	InStock       *bool   `form:"in_stock"`
+	Sort          string  `form:"sort"` // "price_asc", "price_desc", "newest", "name_asc"
+	Page          int     `form:"page,default=1"`
+	Limit         int     `form:"limit,default=12"`
+	IsAdmin       bool    `form:"-"`
 }

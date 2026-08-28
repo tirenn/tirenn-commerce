@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiRequest } from '../services/api';
-import { formatRupiah } from '../utils/format';
+import { useCurrency } from '../context/CurrencyContext';
 import type { Order, AppView } from '../types';
 
 interface OrderHistoryProps {
@@ -8,6 +9,8 @@ interface OrderHistoryProps {
 }
 
 export const OrderHistory: React.FC<OrderHistoryProps> = ({ onSelectView }) => {
+  const { t } = useTranslation();
+  const { formatPrice } = useCurrency();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -49,14 +52,14 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ onSelectView }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Your Orders</h2>
-          <p className="text-xs text-slate-500">Track and review your previous marketplace purchases</p>
+          <h2 className="text-xl font-bold text-slate-900">{t('orders.title')}</h2>
+          <p className="text-xs text-slate-500">Track and review your previous purchases</p>
         </div>
         <button
           onClick={() => onSelectView('storefront')}
           className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors cursor-pointer"
         >
-          ← Continue Shopping
+          ← {t('checkout.continue_shopping')}
         </button>
       </div>
 
@@ -72,15 +75,12 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ onSelectView }) => {
       ) : orders.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center space-y-3 shadow-xs">
           <span className="text-4xl block">📦</span>
-          <h3 className="font-bold text-lg text-slate-900">No previous orders found</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            You haven't placed any orders with this account yet.
-          </p>
+          <h3 className="font-bold text-lg text-slate-900">{t('orders.empty')}</h3>
           <button
             onClick={() => onSelectView('storefront')}
             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-2 px-4 rounded-lg shadow-xs cursor-pointer mt-2"
           >
-            Start Shopping
+            {t('checkout.continue_shopping')}
           </button>
         </div>
       ) : (
@@ -94,7 +94,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ onSelectView }) => {
               <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 text-xs">
                 <div className="flex items-center gap-3">
                   <span className="font-bold text-slate-900 text-sm">
-                    Order #{order.order_number}
+                    {t('orders.order_number')} #{order.order_number}
                   </span>
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getStatusBadge(order.status)}`}>
                     {order.status}
@@ -126,12 +126,12 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ onSelectView }) => {
                       <div>
                         <span className="font-medium text-slate-800">{item.product_name}</span>
                         <span className="text-slate-400 block text-[11px]">
-                          Qty: {item.quantity} × {formatRupiah(item.unit_price)}
+                          Qty: {item.quantity} × {formatPrice(item.unit_price)}
                         </span>
                       </div>
                     </div>
                     <span className="font-semibold text-slate-900">
-                      {formatRupiah(item.subtotal)}
+                      {formatPrice(item.subtotal)}
                     </span>
                   </div>
                 ))}
@@ -144,7 +144,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({ onSelectView }) => {
                   <b className="text-slate-700">{order.shipping_name}</b> ({order.shipping_address})
                 </div>
                 <div className="font-extrabold text-sm text-slate-900">
-                  Total: {formatRupiah(order.total_amount)}
+                  Total: {formatPrice(order.total_amount)}
                 </div>
               </div>
             </div>

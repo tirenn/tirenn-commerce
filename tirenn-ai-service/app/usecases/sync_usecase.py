@@ -16,10 +16,12 @@ class SyncUseCase:
         self.product_repo = product_repo
 
     def _build_rich_text(self, p: ProductIndexItem) -> str:
-        """Create structured semantic text representation of product in Bahasa Indonesia"""
+        """Create structured bilingual-friendly semantic text representation of product"""
         parts = []
         if p.category_name:
             parts.append(f"Kategori: {p.category_name}")
+        if p.sub_category_name:
+            parts.append(f"Subkategori: {p.sub_category_name}")
         parts.append(f"Nama Produk: {p.name}")
         if p.sku:
             parts.append(f"SKU: {p.sku}")
@@ -61,15 +63,19 @@ class SyncUseCase:
 
                 for p in products_raw:
                     cat = p.get("category") or {}
+                    sub_cat = p.get("sub_category") or {}
                     all_items.append(
                         ProductIndexItem(
                             id=p.get("id"),
                             name=p.get("name", ""),
                             category_id=p.get("category_id", 0),
                             category_name=cat.get("name", ""),
+                            sub_category_id=p.get("sub_category_id"),
+                            sub_category_name=sub_cat.get("name", ""),
                             sku=p.get("sku", ""),
                             description=p.get("description", ""),
                             price=float(p.get("price", 0.0)),
+                            currency=p.get("currency", "IDR"),
                             image_url=p.get("image_url", ""),
                             badge=p.get("badge", ""),
                             rating=float(p.get("rating", 5.0)),

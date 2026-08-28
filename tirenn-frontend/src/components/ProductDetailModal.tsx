@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Product } from '../types';
 import { useCart } from '../context/CartContext';
-import { formatRupiah } from '../utils/format';
+import { useCurrency } from '../context/CurrencyContext';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -14,7 +15,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   onClose,
   onDirectCheckout,
 }) => {
+  const { t } = useTranslation();
   const { addToCart } = useCart();
+  const { formatPrice } = useCurrency();
   const [quantity, setQuantity] = useState(1);
 
   if (!product) return null;
@@ -71,16 +74,24 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           {/* Details */}
           <div className="space-y-4">
             <div>
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
-                {product.category?.name || 'Department'} • SKU: {product.sku}
-              </span>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                <span>{product.category ? t(`categories.${product.category.slug}`, product.category.name) : 'Department'}</span>
+                {product.sub_category && (
+                  <>
+                    <span>•</span>
+                    <span className="text-blue-600 font-bold">{t(`subcategories.${product.sub_category.slug}`, product.sub_category.name)}</span>
+                  </>
+                )}
+                <span>•</span>
+                <span>SKU: {product.sku}</span>
+              </div>
               <h2 className="text-xl font-bold text-slate-900 leading-snug">
                 {product.name}
               </h2>
             </div>
 
             <div className="font-extrabold text-2xl text-slate-900">
-              {formatRupiah(product.price)}
+              {formatPrice(product.price, product.currency)}
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
@@ -88,7 +99,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
             </p>
 
             <div className="text-xs text-slate-500">
-              <b>Stock:</b> {product.stock_quantity ?? 0} units available
+              <b>{t('product.in_stock')}:</b> {product.stock_quantity ?? 0} {t('product.remaining_stock', { count: product.stock_quantity ?? 0 }).replace(/[0-9]+ /, '')}
             </div>
 
             {/* Quantity Selector & Actions */}
@@ -121,20 +132,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     onClick={handleAdd}
                     className="border border-slate-200 hover:bg-slate-50 text-slate-800 font-semibold py-2 px-3 rounded-lg text-xs transition-colors cursor-pointer"
                   >
-                    Add to Cart
+                    + {t('product.add_to_cart')}
                   </button>
                   <button
                     data-testid="pdp-buy-now"
                     onClick={handleBuyNow}
                     className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded-lg text-xs shadow-xs transition-colors cursor-pointer"
                   >
-                    Buy Now
+                    {t('checkout.pay_now')}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="bg-rose-50 border border-rose-200 p-3 rounded-lg text-center text-xs text-rose-700 font-medium">
-                Out of Stock
+                {t('product.out_of_stock')}
               </div>
             )}
           </div>

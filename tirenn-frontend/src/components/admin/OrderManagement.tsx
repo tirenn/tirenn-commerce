@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { apiRequest } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
-import { formatRupiah } from '../../utils/format';
+import { useCurrency } from '../../context/CurrencyContext';
 import type { Order } from '../../types';
 
 export const OrderManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { formatPrice } = useCurrency();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -115,7 +116,7 @@ export const OrderManagement: React.FC = () => {
                       <div className="text-[10px] text-slate-400 truncate max-w-xs">{o.shipping_address}</div>
                     </td>
                     <td className="p-3.5 font-bold text-slate-900">
-                      {formatRupiah(o.total_amount)}
+                      {formatPrice(o.total_amount)}
                     </td>
                     <td className="p-3.5">
                       <span className="font-medium text-slate-700">{o.payment_method}</span>

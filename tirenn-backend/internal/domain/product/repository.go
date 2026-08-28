@@ -27,6 +27,12 @@ type Repository interface {
 	ListCategories(ctx context.Context) ([]Category, error)
 	FindCategoryByID(ctx context.Context, id uint) (*Category, error)
 	FindCategoryBySlug(ctx context.Context, slug string) (*Category, error)
+
+	// SubCategory operations
+	CreateSubCategory(ctx context.Context, sc *SubCategory) error
+	ListSubCategories(ctx context.Context, categoryID uint) ([]SubCategory, error)
+	FindSubCategoryByID(ctx context.Context, id uint) (*SubCategory, error)
+	FindSubCategoryBySlug(ctx context.Context, slug string) (*SubCategory, error)
 }
 
 type repository struct {
@@ -43,7 +49,7 @@ func (r *repository) Create(ctx context.Context, p *Product) error {
 
 func (r *repository) FindByID(ctx context.Context, id uint) (*Product, error) {
 	var p Product
-	err := r.db.WithContext(ctx).Preload("Category").First(&p, id).Error
+	err := r.db.WithContext(ctx).Preload("Category").Preload("SubCategory").First(&p, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +61,7 @@ func (r *repository) FindByIDs(ctx context.Context, ids []uint) ([]Product, erro
 		return []Product{}, nil
 	}
 	var products []Product
-	err := r.db.WithContext(ctx).Preload("Category").Where("id IN ?", ids).Find(&products).Error
+	err := r.db.WithContext(ctx).Preload("Category").Preload("SubCategory").Where("id IN ?", ids).Find(&products).Error
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +83,7 @@ func (r *repository) FindByIDs(ctx context.Context, ids []uint) ([]Product, erro
 
 func (r *repository) FindBySlug(ctx context.Context, slug string) (*Product, error) {
 	var p Product
-	err := r.db.WithContext(ctx).Preload("Category").Where("slug = ?", slug).First(&p).Error
+	err := r.db.WithContext(ctx).Preload("Category").Preload("SubCategory").Where("slug = ?", slug).First(&p).Error
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +100,7 @@ func (r *repository) Delete(ctx context.Context, id uint) error {
 
 func (r *repository) ListAll(ctx context.Context) ([]Product, error) {
 	var products []Product
-	err := r.db.WithContext(ctx).Preload("Category").Where("is_active = ?", true).Find(&products).Error
+	err := r.db.WithContext(ctx).Preload("Category").Preload("SubCategory").Where("is_active = ?", true).Find(&products).Error
 	return products, err
 }
 
@@ -104,7 +110,9 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 
 	query := r.db.WithContext(ctx).Model(&Product{}).
 		Joins("LEFT JOIN categories ON categories.id = products.category_id").
-		Preload("Category")
+		Joins("LEFT JOIN sub_categories ON sub_categories.id = products.sub_category_id").
+		Preload("Category").
+		Preload("SubCategory")
 
 	if !filter.IsAdmin {
 		query = query.Where("products.is_active = ?", true)
@@ -117,14 +125,18 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 		for _, token := range tokens {
 			pattern := "%" + token + "%"
 			query = query.Where(
-				"(products.name ILIKE ? OR products.description ILIKE ? OR products.sku ILIKE ? OR categories.name ILIKE ?)",
-				pattern, pattern, pattern, pattern,
+				"(products.name ILIKE ? OR products.description ILIKE ? OR products.sku ILIKE ? OR categories.name ILIKE ? OR sub_categories.name ILIKE ?)",
+				pattern, pattern, pattern, pattern, pattern,
 			)
 		}
 	}
 
 	if filter.CategoryID > 0 {
 		query = query.Where("products.category_id = ?", filter.CategoryID)
+	}
+
+	if filter.SubCategoryID > 0 {
+		query = query.Where("products.sub_category_id = ?", filter.SubCategoryID)
 	}
 
 	if filter.MinPrice > 0 {
@@ -157,7 +169,7 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 	case "name_asc":
 		query = query.Order("products.name ASC")
 	case "newest":
-		query = query.Order("products.created_at DESC")
+		query = query.Order("products.id ASC")
 	default:
 		query = query.Order("products.id ASC")
 	}
@@ -211,13 +223,13 @@ func (r *repository) CreateCategory(ctx context.Context, c *Category) error {
 
 func (r *repository) ListCategories(ctx context.Context) ([]Category, error) {
 	var categories []Category
-	err := r.db.WithContext(ctx).Order("id ASC").Find(&categories).Error
+	err := r.db.WithContext(ctx).Preload("SubCategories").Order("id ASC").Find(&categories).Error
 	return categories, err
 }
 
 func (r *repository) FindCategoryByID(ctx context.Context, id uint) (*Category, error) {
 	var c Category
-	err := r.db.WithContext(ctx).First(&c, id).Error
+	err := r.db.WithContext(ctx).Preload("SubCategories").First(&c, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -226,9 +238,41 @@ func (r *repository) FindCategoryByID(ctx context.Context, id uint) (*Category, 
 
 func (r *repository) FindCategoryBySlug(ctx context.Context, slug string) (*Category, error) {
 	var c Category
-	err := r.db.WithContext(ctx).Where("slug = ?", slug).First(&c).Error
+	err := r.db.WithContext(ctx).Preload("SubCategories").Where("slug = ?", slug).First(&c).Error
 	if err != nil {
 		return nil, err
 	}
 	return &c, nil
+}
+
+func (r *repository) CreateSubCategory(ctx context.Context, sc *SubCategory) error {
+	return r.db.WithContext(ctx).Create(sc).Error
+}
+
+func (r *repository) ListSubCategories(ctx context.Context, categoryID uint) ([]SubCategory, error) {
+	var subCategories []SubCategory
+	query := r.db.WithContext(ctx).Order("id ASC")
+	if categoryID > 0 {
+		query = query.Where("category_id = ?", categoryID)
+	}
+	err := query.Find(&subCategories).Error
+	return subCategories, err
+}
+
+func (r *repository) FindSubCategoryByID(ctx context.Context, id uint) (*SubCategory, error) {
+	var sc SubCategory
+	err := r.db.WithContext(ctx).Preload("Category").First(&sc, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &sc, nil
+}
+
+func (r *repository) FindSubCategoryBySlug(ctx context.Context, slug string) (*SubCategory, error) {
+	var sc SubCategory
+	err := r.db.WithContext(ctx).Preload("Category").Where("slug = ?", slug).First(&sc).Error
+	if err != nil {
+		return nil, err
+	}
+	return &sc, nil
 }

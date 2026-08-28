@@ -26,6 +26,7 @@ type Order struct {
 	UserID          uint            `gorm:"not null;index" json:"user_id"`
 	User            auth.User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	TotalAmount     float64         `gorm:"type:decimal(12,2);not null;default:0.00" json:"total_amount"`
+	Currency        string          `gorm:"size:10;default:'IDR';not null" json:"currency"`
 	Status          string          `gorm:"size:30;default:'PENDING';not null;index" json:"status"`
 	ShippingName    string          `gorm:"size:100;not null" json:"shipping_name"`
 	ShippingPhone   string          `gorm:"size:30;not null" json:"shipping_phone"`
@@ -53,6 +54,7 @@ type OrderItem struct {
 	Quantity     int             `gorm:"not null" json:"quantity"`
 	UnitPrice    float64         `gorm:"type:decimal(12,2);not null" json:"unit_price"`
 	Subtotal     float64         `gorm:"type:decimal(12,2);not null" json:"subtotal"`
+	Currency     string          `gorm:"size:10;default:'IDR';not null" json:"currency"`
 }
 
 func (OrderItem) TableName() string {
@@ -70,6 +72,7 @@ type CheckoutRequest struct {
 	ShippingPhone   string                `json:"shipping_phone" binding:"required"`
 	ShippingAddress string                `json:"shipping_address" binding:"required"`
 	PaymentMethod   string                `json:"payment_method"`
+	Currency        string                `json:"currency"`
 	Notes           string                `json:"notes"`
 }
 

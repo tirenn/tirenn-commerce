@@ -69,6 +69,7 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, rdb *redis.Client) *gin
 		v1.GET("/products", handlers.Product.ListProducts)
 		v1.GET("/products/:id", handlers.Product.GetProduct)
 		v1.GET("/categories", handlers.Product.ListCategories)
+		v1.GET("/sub-categories", handlers.Product.ListSubCategories)
 
 		// -------------------------------------------------------------
 		// Authenticated Customer Orders Routes
@@ -95,6 +96,7 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, rdb *redis.Client) *gin
 			admin.POST("/products/:id/adjust-stock", handlers.Product.AdjustStock)
 			admin.GET("/products/:id/stock-logs", handlers.Product.GetStockLogs)
 			admin.POST("/categories", handlers.Product.CreateCategory)
+			admin.POST("/sub-categories", handlers.Product.CreateSubCategory)
 
 			// Customer CRM Management
 			admin.GET("/customers", handlers.Customer.ListCustomers)

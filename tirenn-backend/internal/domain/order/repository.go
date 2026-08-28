@@ -61,6 +61,10 @@ func (r *repository) CreateOrderWithItems(ctx context.Context, order *Order, ite
 			items[i].ProductImage = p.ImageURL
 			items[i].UnitPrice = p.Price
 			items[i].Subtotal = p.Price * float64(items[i].Quantity)
+			items[i].Currency = p.Currency
+			if items[i].Currency == "" {
+				items[i].Currency = "IDR"
+			}
 
 			totalAmount += items[i].Subtotal
 
@@ -80,6 +84,9 @@ func (r *repository) CreateOrderWithItems(ctx context.Context, order *Order, ite
 		}
 
 		order.TotalAmount = totalAmount
+		if order.Currency == "" {
+			order.Currency = "IDR"
+		}
 
 		// 2. Insert Order Header
 		if err := tx.Create(order).Error; err != nil {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiRequest } from './services/api';
 import { useAuth } from './context/AuthContext';
 import type { Product, Category, AppView } from './types';
@@ -25,6 +26,7 @@ import { CustomerManagement } from './components/admin/CustomerManagement';
 const PRODUCTS_PER_PAGE = 12;
 
 export const App: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'ADMIN';
 
@@ -32,7 +34,7 @@ export const App: React.FC = () => {
     return isAdmin ? 'admin-dashboard' : 'storefront';
   });
 
-  // When user role changes (e.g. login as admin or logout), update view
+  // When user role changes, update view
   useEffect(() => {
     if (isAdmin) {
       if (!currentView.startsWith('admin')) {
@@ -58,6 +60,7 @@ export const App: React.FC = () => {
   // Filters, Search & AI Semantic Search
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState(0);
+  const [selectedSubCategoryId, setSelectedSubCategoryId] = useState(0);
   const [selectedSort, setSelectedSort] = useState('newest');
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [isSemantic, setIsSemantic] = useState(false);
@@ -83,9 +86,14 @@ export const App: React.FC = () => {
     }
   };
 
+  const isFetchingRef = useRef(false);
+
   // Fetch products function (supports initial replace or append for infinite scrolling)
   const fetchProducts = useCallback(
     async (pageToFetch: number, isInitial: boolean = false) => {
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
+
       if (isInitial) {
         setLoadingInitial(true);
       } else {
@@ -98,14 +106,13 @@ export const App: React.FC = () => {
         if (searchTerm) params.append('search', searchTerm);
         if (isSemantic) params.append('semantic', 'true');
         if (selectedCategoryId > 0) params.append('category_id', selectedCategoryId.toString());
+        if (selectedSubCategoryId > 0) params.append('sub_category_id', selectedSubCategoryId.toString());
         if (selectedSort) params.append('sort', selectedSort);
         if (onlyInStock) params.append('in_stock', 'true');
         params.append('page', pageToFetch.toString());
         params.append('limit', PRODUCTS_PER_PAGE.toString());
 
         const res = await apiRequest<Product[]>(`/products?${params.toString()}`);
-        setLoadingInitial(false);
-        setLoadingMore(false);
 
         if (res.success && Array.isArray(res.data)) {
           const incoming = res.data;
@@ -119,19 +126,33 @@ export const App: React.FC = () => {
               return [...prev, ...fresh];
             });
           }
-          setTotalProducts(res.meta?.total_rows || incoming.length);
-          setTotalPages(res.meta?.total_pages || 1);
+          const totalRows = res.meta?.total_rows ?? incoming.length;
+          const pages = res.meta?.total_page ?? res.meta?.total_pages ?? Math.ceil(totalRows / PRODUCTS_PER_PAGE) ?? 1;
+          setTotalProducts(totalRows);
+          setTotalPages(pages);
         } else {
           setError(res.error || 'Failed to load products');
         }
       } catch (err: any) {
+        setError(err?.message || 'Network error occurred while fetching products');
+      } finally {
         setLoadingInitial(false);
         setLoadingMore(false);
-        setError(err?.message || 'Network error occurred while fetching products');
+        isFetchingRef.current = false;
       }
     },
-    [searchTerm, isSemantic, selectedCategoryId, selectedSort, onlyInStock]
+    [searchTerm, isSemantic, selectedCategoryId, selectedSubCategoryId, selectedSort, onlyInStock]
   );
+
+  const loadNextPage = useCallback(() => {
+    if (isFetchingRef.current || loadingInitial || loadingMore) return;
+    if (currentPage >= totalPages) return;
+    if (products.length >= totalProducts && totalProducts > 0) return;
+
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    fetchProducts(nextPage, false);
+  }, [currentPage, totalPages, totalProducts, products.length, loadingInitial, loadingMore, fetchProducts]);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -147,43 +168,45 @@ export const App: React.FC = () => {
     }
   }, [fetchProducts, isAdmin]);
 
-  // When page increments (> 1) via scrolling, fetch and append
+  // Dual Trigger 1: Window Scroll Event for reliable infinite scroll
   useEffect(() => {
-    if (!isAdmin && currentPage > 1) {
-      fetchProducts(currentPage, false);
-    }
-  }, [currentPage, fetchProducts, isAdmin]);
+    if (isAdmin) return;
 
-  // Auto Pagination (Infinite Scrolling) via IntersectionObserver
+    const handleScroll = () => {
+      const scrollPosition = window.innerHeight + window.scrollY;
+      const threshold = document.documentElement.scrollHeight - 600;
+      if (scrollPosition >= threshold) {
+        loadNextPage();
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isAdmin, loadNextPage]);
+
+  // Dual Trigger 2: IntersectionObserver for sentinel element
   useEffect(() => {
-    if (isAdmin || loadingInitial || loadingMore) return;
-    if (currentPage >= totalPages) return;
+    if (isAdmin) return;
+    const currentSentinel = sentinelRef.current;
+    if (!currentSentinel) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const first = entries[0];
-        if (first.isIntersecting && !loadingMore && currentPage < totalPages) {
-          setCurrentPage((prev) => prev + 1);
+        if (entries[0].isIntersecting) {
+          loadNextPage();
         }
       },
-      { rootMargin: '300px' }
+      { rootMargin: '400px' }
     );
 
-    const currentSentinel = sentinelRef.current;
-    if (currentSentinel) {
-      observer.observe(currentSentinel);
-    }
-
-    return () => {
-      if (currentSentinel) {
-        observer.unobserve(currentSentinel);
-      }
-    };
-  }, [isAdmin, loadingInitial, loadingMore, currentPage, totalPages]);
+    observer.observe(currentSentinel);
+    return () => observer.unobserve(currentSentinel);
+  }, [isAdmin, loadNextPage]);
 
   const handleResetFilters = () => {
     setSearchTerm('');
     setSelectedCategoryId(0);
+    setSelectedSubCategoryId(0);
     setSelectedSort('newest');
     setOnlyInStock(false);
     setIsSemantic(false);
@@ -219,16 +242,23 @@ export const App: React.FC = () => {
           /* Customer / Public Storefront Views */
           currentView === 'storefront' ? (
             <>
-              {!searchTerm && selectedCategoryId === 0 && <HeroBanner />}
+              {!searchTerm && selectedCategoryId === 0 && <HeroBanner onExplore={() => {
+                const el = document.getElementById('catalog-anchor');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }} onOpenAI={() => setIsAIChatOpen(true)} />}
+
+              <div id="catalog-anchor"></div>
 
               <FilterBar
                 categories={Array.isArray(categories) ? categories : []}
                 selectedCategoryId={selectedCategoryId}
+                selectedSubCategoryId={selectedSubCategoryId}
                 selectedSort={selectedSort}
                 onlyInStock={onlyInStock}
                 isSemantic={isSemantic}
                 totalProductsCount={totalProducts}
                 onSelectCategory={setSelectedCategoryId}
+                onSelectSubCategory={setSelectedSubCategoryId}
                 onSelectSort={setSelectedSort}
                 onToggleInStock={setOnlyInStock}
                 onToggleSemantic={setIsSemantic}
@@ -239,7 +269,7 @@ export const App: React.FC = () => {
               {loadingInitial ? (
                 <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
                   <span className="text-2xl animate-spin block mb-2">⚡</span>
-                  <span className="text-xs text-slate-600">Memuat katalog produk...</span>
+                  <span className="text-xs text-slate-600">Loading catalog...</span>
                 </div>
               ) : error ? (
                 <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-xl text-xs font-medium">
@@ -247,15 +277,15 @@ export const App: React.FC = () => {
                 </div>
               ) : !Array.isArray(products) || products.length === 0 ? (
                 <div className="bg-white border border-slate-200 rounded-xl p-12 text-center space-y-2">
-                  <h3 className="font-semibold text-sm text-slate-900">Tidak ada produk yang cocok</h3>
+                  <h3 className="font-semibold text-sm text-slate-900">No matching products found</h3>
                   <p className="text-xs text-slate-500">
-                    Coba sesuaikan kata kunci pencarian atau filter kategori Anda.
+                    Try adjusting your search keywords or category filters.
                   </p>
                   <button
                     onClick={handleResetFilters}
                     className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs py-1.5 px-3 rounded-lg cursor-pointer mt-2"
                   >
-                    Reset Filter
+                    {t('filter.reset')}
                   </button>
                 </div>
               ) : (
@@ -275,15 +305,24 @@ export const App: React.FC = () => {
                   </div>
 
                   {/* Auto-Pagination Infinite Scroll Sentinel & Loading Indicator */}
-                  <div ref={sentinelRef} className="py-8 text-center">
+                  <div ref={sentinelRef} className="py-10 text-center min-h-[90px] flex flex-col items-center justify-center">
                     {loadingMore ? (
-                      <div className="inline-flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-xs text-xs font-semibold text-slate-600 animate-pulse">
-                        <span className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
-                        Memuat lebih banyak produk...
+                      <div className="inline-flex items-center gap-2 bg-white border border-slate-200 px-5 py-2.5 rounded-full shadow-xs text-xs font-semibold text-slate-600 animate-pulse">
+                        <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+                        {i18n.language === 'en' ? 'Loading more products...' : 'Memuat lebih banyak produk...'}
                       </div>
+                    ) : products.length < totalProducts && totalProducts > 0 ? (
+                      <button
+                        onClick={loadNextPage}
+                        data-testid="load-more-products-btn"
+                        className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold py-2 px-5 rounded-full shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                      >
+                        <span>⬇️</span>
+                        <span>{i18n.language === 'en' ? `Load More Products (${products.length}/${totalProducts})` : `Muat Lebih Banyak (${products.length}/${totalProducts})`}</span>
+                      </button>
                     ) : products.length >= totalProducts && totalProducts > 0 ? (
                       <div className="text-xs text-slate-400 font-medium">
-                        ✓ Semua <span className="font-bold text-slate-600">{totalProducts}</span> produk telah ditampilkan
+                        ✓ {i18n.language === 'en' ? `All ${totalProducts} products loaded` : `Semua ${totalProducts} produk telah dimuat`}
                       </div>
                     ) : null}
                   </div>
@@ -307,7 +346,7 @@ export const App: React.FC = () => {
           className="fixed bottom-6 right-6 z-40 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-3 px-4 rounded-full shadow-lg flex items-center gap-2 transition-transform hover:scale-105 cursor-pointer border-2 border-white ring-4 ring-purple-300/40"
         >
           <span className="text-base animate-bounce">🤖</span>
-          <span>Tanya AI Shopper</span>
+          <span>{t('hero.cta_ai')}</span>
         </button>
       )}
 

@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str = ""
     REDIS_DB: int = 0
 
-    # Ollama Local LLM Settings (Qwen 2.5)
+    # Ollama Local LLM Settings (Qwen 2.5 1.5B for fast CPU inference)
     OLLAMA_BASE_URL: str = "http://ollama:11434"
-    LLM_MODEL: str = "qwen2.5:3b"
+    LLM_MODEL: str = "qwen2.5:1.5b"
 
     # LLM Temperature Settings
     LLM_TOOL_TEMPERATURE: float = 0.0
