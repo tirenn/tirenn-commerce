@@ -2,6 +2,7 @@ version: '3.8'
 
 # ==============================================================================
 # Tirenn Commerce - Python AI & Semantic Search Microservice
+# All configuration values are loaded strictly from .env
 # ==============================================================================
 
 services:
@@ -11,37 +12,10 @@ services:
       dockerfile: Dockerfile
     container_name: tirenn-ai-service
     restart: always
-    environment:
-      PORT: 8000
-      ENVIRONMENT: production
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_USER: gouser
-      DB_PASSWORD: gopassword
-      DB_NAME: gocommerce_db
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      BACKEND_API_URL: http://backend:8080/api/v1
-      OLLAMA_BASE_URL: http://ollama:11434
-      LLM_MODEL: ${LLM_MODEL:-qwen2.5:1.5b}
-      LLM_TOOL_TEMPERATURE: ${LLM_TOOL_TEMPERATURE:-0.0}
-      LLM_CHAT_TEMPERATURE: ${LLM_CHAT_TEMPERATURE:-0.3}
-      DEFAULT_SEARCH_SCORE_THRESHOLD: ${DEFAULT_SEARCH_SCORE_THRESHOLD:-0.25}
-      CHAT_SEARCH_SCORE_THRESHOLD: ${CHAT_SEARCH_SCORE_THRESHOLD:-0.20}
-      CHAT_SEARCH_FALLBACK_THRESHOLD: ${CHAT_SEARCH_FALLBACK_THRESHOLD:-0.10}
-      ENABLE_HYBRID_SEARCH: ${ENABLE_HYBRID_SEARCH:-true}
-      HYBRID_VECTOR_WEIGHT: ${HYBRID_VECTOR_WEIGHT:-0.70}
-      HYBRID_TEXT_WEIGHT: ${HYBRID_TEXT_WEIGHT:-0.30}
-      SEARCH_LIMIT: ${SEARCH_LIMIT:-12}
-      CHAT_SEARCH_LIMIT: ${CHAT_SEARCH_LIMIT:-10}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,*}
-      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
-      RATE_LIMIT_GENERAL_PER_MINUTE: ${RATE_LIMIT_GENERAL_PER_MINUTE:-60}
-      RATE_LIMIT_CHAT_PER_MINUTE: ${RATE_LIMIT_CHAT_PER_MINUTE:-30}
-      MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-2097152}
-      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+    env_file:
+      - .env
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
     networks:
       - tirenn-net
 

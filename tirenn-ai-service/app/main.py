@@ -13,14 +13,17 @@ from app.core.security import (
 )
 from app.repositories.embedding_repository import EmbeddingRepository
 from app.repositories.product_repository import ProductRepository
+from app.repositories.knowledge_repository import KnowledgeRepository
 from app.repositories.llm_repository import LLMRepository
 
 from app.usecases.search_usecase import SearchUseCase
 from app.usecases.sync_usecase import SyncUseCase
+from app.usecases.knowledge_usecase import KnowledgeUseCase
 from app.usecases.shopper_usecase import ShopperUseCase
 
 from app.handlers.chat_handler import get_chat_router
 from app.handlers.catalog_handler import get_catalog_router
+from app.handlers.knowledge_handler import get_knowledge_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,20 +38,24 @@ logger = logging.getLogger("ai-service.main")
 # 1. Repositories
 embedding_repo = EmbeddingRepository()
 product_repo = ProductRepository()
+knowledge_repo = KnowledgeRepository()
 llm_repo = LLMRepository()
 
 # 2. UseCases
 search_usecase = SearchUseCase(embedding_repo=embedding_repo, product_repo=product_repo)
 sync_usecase = SyncUseCase(embedding_repo=embedding_repo, product_repo=product_repo)
+knowledge_usecase = KnowledgeUseCase(knowledge_repo=knowledge_repo, embedding_repo=embedding_repo)
 shopper_usecase = ShopperUseCase(
     llm_repo=llm_repo,
     product_repo=product_repo,
-    search_usecase=search_usecase
+    search_usecase=search_usecase,
+    knowledge_usecase=knowledge_usecase
 )
 
 # 3. Handlers
 chat_router = get_chat_router(shopper_usecase=shopper_usecase)
 catalog_router = get_catalog_router(search_usecase=search_usecase, sync_usecase=sync_usecase)
+knowledge_router = get_knowledge_router(knowledge_usecase=knowledge_usecase)
 
 async def _bg_sync():
     """Initial vector indexing sync on application boot"""
@@ -64,7 +71,7 @@ async def _bg_sync():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("🧠 Tirenn AI Service starting up with Clean Architecture (Handler-UseCase-Repository)...")
+    logger.info("🧠 Tirenn AI Service starting up with Clean Architecture & Vector RAG...")
     asyncio.create_task(llm_repo.ensure_model_available())
     asyncio.create_task(_bg_sync())
     yield
@@ -73,7 +80,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.SERVICE_NAME,
     version="1.0.0",
-    description="Microservice providing Vector Embeddings, Fast Semantic Search, and Product Intelligence for Tirenn Commerce.",
+    description="Microservice providing Vector Embeddings, Fast Semantic Search, RAG Knowledge Base, and Shopper Agent for Tirenn Commerce.",
     lifespan=lifespan,
 )
 
@@ -108,6 +115,7 @@ async def healthz():
 # Register Handlers
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(catalog_router, prefix="/api/v1")
+app.include_router(knowledge_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn

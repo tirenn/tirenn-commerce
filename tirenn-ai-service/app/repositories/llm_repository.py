@@ -41,7 +41,7 @@ class LLMRepository:
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         temperature: float = 0.0,
-        timeout: float = 60.0
+        timeout: float = 120.0
     ) -> Dict[str, Any]:
         """Send chat messages and tool definitions to Ollama and return assistant message"""
         payload: Dict[str, Any] = {
@@ -55,7 +55,8 @@ class LLMRepository:
         if tools:
             payload["tools"] = tools
 
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        client_timeout = httpx.Timeout(timeout, connect=15.0, read=timeout, write=15.0)
+        async with httpx.AsyncClient(timeout=client_timeout) as client:
             resp = await client.post(f"{self.base_url}/api/chat", json=payload)
             if resp.status_code == 404:
                 # If model was missing, attempt auto-pull and retry once

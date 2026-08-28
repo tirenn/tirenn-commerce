@@ -16,12 +16,14 @@ type AIClient interface {
 
 type aiClient struct {
 	baseURL    string
+	apiKey     string
 	httpClient *http.Client
 }
 
-func NewAIClient(baseURL string) AIClient {
+func NewAIClient(baseURL string, apiKey string) AIClient {
 	return &aiClient{
 		baseURL: baseURL,
+		apiKey:  apiKey,
 		httpClient: &http.Client{
 			Timeout: 4 * time.Second,
 		},
@@ -138,6 +140,9 @@ func (c *aiClient) SyncProducts(ctx context.Context, products []Product) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

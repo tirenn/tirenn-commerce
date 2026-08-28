@@ -41,7 +41,7 @@ func main() {
 	orderRepo := order.NewRepository(db)
 	customerRepo := customer.NewRepository(db)
 	dashboardRepo := dashboard.NewRepository(db)
-	productAIClient := product.NewAIClient(cfg.AIServiceURL)
+	productAIClient := product.NewAIClient(cfg.AIServiceURL, cfg.InternalAPIKey)
 
 	// 5. Dependency Injection: UseCases
 	authUseCase := auth.NewUseCase(authRepo, cfg)

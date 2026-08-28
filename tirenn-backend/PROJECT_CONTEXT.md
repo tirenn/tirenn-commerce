@@ -10,7 +10,7 @@ The Go backend follows Clean Domain Architecture:
 
 ```
 internal/
-├── database/            # PostgreSQL connection, pgvector extension, connection pooling
+├── database/            # PostgreSQL connection, pgvector extension, AutoMigrate & seeders
 ├── logger/              # Structured JSON logging compatible with Grafana Loki & Promtail
 ├── middleware/          # JWT auth, CORS, Redis sliding-window rate limiting, request tracing
 ├── router/              # Gin HTTP router mounting domain endpoints
@@ -19,19 +19,24 @@ internal/
     ├── admin/           # Executive KPIs, analytics aggregation, dashboard overview
     ├── auth/            # JWT authentication, login, registration, /auth/me profile
     ├── customer/        # Customer directory, user management
+    ├── knowledge/       # KnowledgeDocument & KnowledgeChunk GORM models & migrations
     ├── order/           # Order processing, transactional checkout, status workflows
     └── product/         # Product catalog, categories, stock adjustment audit logs
 ```
 
 ---
 
-## 🗄️ PostgreSQL Database Entities
+## 🗄️ PostgreSQL Database Entities & Migrations
+
+> **Rule**: All database changes **MUST** be created using Goose SQL migrations via `make migrate-create name=<migration_name>` and placed in `migrations/`, alongside corresponding GORM domain models.
 
 - **`users`**: User identity, hashed passwords, roles (`ADMIN` / `CUSTOMER`).
-- **`categories`**: Product taxonomy (e.g. *Elektronik & Gadget*, *Fashion Pria*, *Fashion Wanita*).
+- **`categories`** & **`sub_categories`**: Product taxonomy (e.g. *Elektronik & Gadget*, *Fashion Pria*, *Fashion Wanita*).
 - **`products`**: Product inventory, SKU, pricing, stock levels, `embedding vector(384)`, full-text search fields.
 - **`stock_adjustment_logs`**: Complete audit trail of stock adjustments (`ADD`, `SUBTRACT`, `SET`, admin ID, reason).
 - **`orders` & `order_items`**: Order transactions, total amount, shipping addresses, items snapshot.
+- **`knowledge_documents`**: RAG Knowledge Base documents (title, doc_type, filename, total_pages, total_chunks, created_at).
+- **`knowledge_chunks`**: RAG Knowledge Chunks (document_id FK, chunk_index, content, page_number, `embedding vector(384)`, HNSW vector cosine index `idx_knowledge_chunks_embedding_hnsw`).
 
 ---
 
@@ -60,3 +65,14 @@ internal/
 - `GET /api/v1/admin/orders`: List customer orders.
 - `PATCH /api/v1/admin/orders/:id/status`: Update order status.
 - `GET /api/v1/admin/customers`: List customer directory with metrics.
+
+---
+
+## 📜 Service Changelog
+
+### 📅 2026-08-28
+- `[Golang]` Configured `INTERNAL_API_KEY` in `internal/config/config.go` and wired `X-API-Key` headers in `internal/domain/product/ai_client.go`.
+- `[Golang]` Created Goose SQL migration `migrations/20260828000002_create_knowledge_tables.sql` for `knowledge_documents` and `knowledge_chunks` with HNSW vector cosine indexing.
+- `[Golang]` Added `KnowledgeDocument` and `KnowledgeChunk` GORM models under `internal/domain/knowledge/entity.go`.
+- `[Golang]` Integrated `&knowledge.KnowledgeDocument{}` and `&knowledge.KnowledgeChunk{}` into `db.AutoMigrate(...)` in `internal/database/seeder.go`, removing all ad-hoc raw DDL executions.
+- `[Golang]` Rebuilt and restarted backend Docker container.

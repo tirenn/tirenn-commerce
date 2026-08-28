@@ -134,6 +134,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 Customers
               </button>
+              <button
+                data-testid="admin-tab-knowledge"
+                onClick={() => onSelectView('admin-knowledge')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                  currentView === 'admin-knowledge' ? 'bg-purple-700 text-white' : 'text-slate-600 hover:bg-purple-50 hover:text-purple-700'
+                }`}
+              >
+                <span>📚</span>
+                <span>{i18n.language === 'en' ? 'SOP & AI Knowledge' : 'SOP & Pengetahuan'}</span>
+              </button>
             </div>
           )}
 

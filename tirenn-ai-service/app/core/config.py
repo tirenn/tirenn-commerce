@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str = ""
     REDIS_DB: int = 0
 
-    # Ollama Local LLM Settings (Qwen 2.5 1.5B for fast CPU inference)
+    # Ollama Local LLM Settings (Qwen 2.5 3B for intelligent Tool Calling)
     OLLAMA_BASE_URL: str = "http://ollama:11434"
-    LLM_MODEL: str = "qwen2.5:1.5b"
+    LLM_MODEL: str = "qwen2.5:3b"
 
     # LLM Temperature Settings
     LLM_TOOL_TEMPERATURE: float = 0.0
@@ -48,15 +48,19 @@ class Settings(BaseSettings):
 
     # Search Limit Defaults
     SEARCH_LIMIT: int = 12
-    CHAT_SEARCH_LIMIT: int = 10
+    CHAT_SEARCH_LIMIT: int = 6
 
     # API Security Settings
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,*"
     RATE_LIMIT_ENABLED: bool = True
-    RATE_LIMIT_GENERAL_PER_MINUTE: int = 60
-    RATE_LIMIT_CHAT_PER_MINUTE: int = 30
-    MAX_REQUEST_BODY_BYTES: int = 2_097_152  # 2MB
-    INTERNAL_API_KEY: str = ""
+    RATE_LIMIT_GENERAL_PER_MINUTE: int = 300
+    RATE_LIMIT_CHAT_PER_MINUTE: int = 180
+    MAX_REQUEST_BODY_BYTES: int = 10_485_760  # 10MB
+    # JWT Authentication Settings (Synced with Golang Backend)
+    JWT_SECRET: str = "super-secret-tirenn-jwt-key-2026"
+    JWT_ISSUER: str = "gocommerce-api"
+    # Internal Machine-to-Machine Secret Key
+    INTERNAL_API_KEY: str = "very-very-secret-internal-key-2026"
 
     class Config:
         env_file = ".env"

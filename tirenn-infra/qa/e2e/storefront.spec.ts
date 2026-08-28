@@ -104,7 +104,7 @@ test.describe('Storefront User-Facing Functionality', () => {
   });
 
   test('7. Guest user should be able to add product to cart via AI Chat', async ({ page }) => {
-    test.setTimeout(60000);
+    test.setTimeout(120000);
     const aiBtn = page.getByTestId('ai-shopper-floating-btn');
     await aiBtn.click();
 
@@ -118,7 +118,7 @@ test.describe('Storefront User-Facing Functionality', () => {
 
     // Wait for product card to appear inside chat
     const chatProductCard = page.locator('[data-testid^="chat-product-card-"]').first();
-    await expect(chatProductCard).toBeVisible({ timeout: 30000 });
+    await expect(chatProductCard).toBeVisible({ timeout: 90000 });
 
     // Click Add to Cart inside AI Chat
     const chatAddBtn = page.locator('[data-testid^="chat-add-to-cart-"]').first();

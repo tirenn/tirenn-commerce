@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from app.harness.tools.base import BaseTool
 from app.repositories.product_repository import ProductRepository
 from app.usecases.search_usecase import SearchUseCase
@@ -7,68 +7,63 @@ from app.usecases.search_usecase import SearchUseCase
 logger = logging.getLogger("ai-service.harness.tools.cart")
 
 class AddToCartTool(BaseTool):
-    """Tool for adding items to shopping cart for both guests and authenticated users"""
+    """Tool for adding items to shopping cart for both guests and authenticated users by SKU"""
 
     name = "add_to_cart"
-    description = "Add a selected product to customer's shopping cart (works for both guests and logged-in users)."
+    description = "Add a selected product to customer's shopping cart. Pass product SKU and quantity."
     parameters_schema = {
         "type": "object",
         "properties": {
-            "product_name_or_query": {
+            "sku": {
                 "type": "string",
-                "description": "Product name or SKU to add to cart (e.g. 'AuraSound', 'AUD-001')."
+                "description": "Product SKU to add to cart (e.g. 'ID-AUD-001', 'ID-WCL-001', 'EN-AUD-003')."
             },
-            "product_id": {
+            "qty": {
                 "type": "integer",
-                "description": "Product ID if known."
-            },
-            "quantity": {
-                "type": "integer",
-                "description": "Quantity count (default: 1)."
+                "description": "Quantity to add to cart (default: 1)."
             }
-        }
+        },
+        "required": ["sku"]
     }
 
-    def __init__(self, product_repo: ProductRepository, search_usecase: SearchUseCase):
+    def __init__(self, product_repo: ProductRepository, search_usecase: Optional[SearchUseCase] = None):
         self.product_repo = product_repo
-        self.search_usecase = search_usecase
 
     async def execute(self, args: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        p_id = args.get("product_id")
-        query = (args.get("product_name_or_query") or "").strip()
-        qty = int(args.get("quantity") or 1)
+        sku = (args.get("sku") or "").strip()
+        qty = int(args.get("qty") or 1)
         if qty <= 0:
             qty = 1
 
-        is_authenticated = context.get("is_authenticated", False) if context else False
+        context = context or {}
+        is_authenticated = context.get("is_authenticated", False)
 
         logger.info(
-            f"🛒 [TOOL: add_to_cart] product_name_or_query='{query}' | "
-            f"product_id={p_id} | quantity={qty} | is_authenticated={is_authenticated}"
+            f"🛒 [TOOL: add_to_cart] sku='{sku}' | qty={qty} | is_authenticated={is_authenticated}"
         )
 
-        prod = None
-        if p_id and int(p_id) <= 2000:
-            prod = self.product_repo.get_product_by_id(int(p_id))
+        if not sku:
+            return {
+                "action": "need_clarification"
+            }
 
-        if not prod and query:
-            prod = self.product_repo.get_product_by_sku_or_name(query)
-
-        if not prod and query:
-            search_res = self.search_usecase.execute(query=query, limit=1, score_threshold=0.10)
-            if search_res:
-                prod = self.product_repo.get_product_by_id(search_res[0].id)
+        # Direct SQL lookup strictly by SKU
+        prod = self.product_repo.get_product_by_sku(sku)
 
         if not prod:
             return {
                 "action": "not_found",
-                "message": f"Cannot add to cart: Product '{query or p_id}' not found."
+                "sku": sku
             }
 
+        # Server-side stock re-validation
         if prod.stock_quantity <= 0:
             return {
                 "action": "out_of_stock",
-                "message": f"Sorry, '{prod.name}' is currently out of stock."
+                "id": prod.id,
+                "sku": prod.sku,
+                "name": prod.name,
+                "stock_quantity": 0
             }
 
         actual_qty = min(qty, prod.stock_quantity)
@@ -76,13 +71,18 @@ class AddToCartTool(BaseTool):
 
         return {
             "action": "cart_added",
-            "message": f"'{prod.name}' ({actual_qty} pcs) has been successfully added to your shopping cart.",
+            "id": prod.id,
+            "name": prod.name,
+            "sku": prod.sku,
+            "price": prod.price,
+            "currency": curr,
+            "quantity": actual_qty,
+            "stock_quantity": prod.stock_quantity,
             "product": {
                 "id": prod.id,
                 "name": prod.name,
                 "sku": prod.sku,
                 "price": prod.price,
-                "currency": curr,
                 "image_url": prod.image_url,
                 "stock_quantity": prod.stock_quantity,
                 "quantity": actual_qty
@@ -98,4 +98,35 @@ class AddToCartTool(BaseTool):
                 "in_stock": True,
                 "score": 1.0
             }
+        }
+
+
+class ViewCartTool(BaseTool):
+    """Tool for viewing items currently in customer's shopping cart"""
+
+    name = "view_cart"
+    description = "View the current items, quantities, and status of customer's shopping cart."
+    parameters_schema = {
+        "type": "object",
+        "properties": {}
+    }
+
+    def __init__(self, product_repo: ProductRepository):
+        self.product_repo = product_repo
+
+    async def execute(self, args: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        context = context or {}
+        cart_items = context.get("cart_items", [])
+
+        if not cart_items:
+            return {
+                "status": "empty",
+                "item_count": 0,
+                "items": []
+            }
+
+        return {
+            "status": "active",
+            "item_count": len(cart_items),
+            "items": cart_items
         }

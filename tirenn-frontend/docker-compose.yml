@@ -2,6 +2,7 @@ version: '3.8'
 
 # ==============================================================================
 # Tirenn Commerce - React / Vite Frontend Microservice
+# All configuration values are loaded strictly from .env
 # ==============================================================================
 
 services:
@@ -9,14 +10,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        - VITE_API_BASE_URL=http://localhost:8080/api/v1
-        - VITE_BACKEND_URL=http://localhost:8080
-        - VITE_AI_SERVICE_URL=http://localhost:8000/api/v1
     container_name: tirenn-frontend
     restart: always
+    env_file:
+      - .env
     ports:
-      - "3000:80"
+      - "${PORT:-3000}:80"
     networks:
       - tirenn-net
 

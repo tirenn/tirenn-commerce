@@ -12,6 +12,8 @@ class ChatShopperRequest(BaseModel):
     messages: List[ChatMessage]
     is_authenticated: Optional[bool] = False
     user_name: Optional[str] = None
+    session_id: Optional[str] = None
+    cart_items: Optional[List[Dict[str, Any]]] = None
 
 class ChatShopperResponse(BaseModel):
     success: bool
@@ -29,13 +31,15 @@ def get_chat_router(shopper_usecase: ShopperUseCase) -> APIRouter:
             result = await shopper_usecase.chat(
                 messages=req.messages,
                 is_authenticated=req.is_authenticated or False,
-                user_name=req.user_name
+                user_name=req.user_name,
+                session_id=req.session_id,
+                cart_items=req.cart_items
             )
             return ChatShopperResponse(
                 success=True,
                 reply=result.reply,
                 tool_calls=result.tool_calls,
-                suggested_products=result.suggested_products,
+                suggested_products=result.suggested_products[:6],
                 cart_action=result.cart_action
             )
         except Exception as e:
@@ -49,5 +53,11 @@ def get_chat_router(shopper_usecase: ShopperUseCase) -> APIRouter:
     @router.post("/chat", response_model=ChatShopperResponse)
     async def chat(req: ChatShopperRequest):
         return await _handle_chat(req)
+
+    @router.delete("/chat/session/{session_id}")
+    async def delete_session(session_id: str):
+        """Delete chat session history from Redis when not used"""
+        deleted = shopper_usecase.delete_session(session_id)
+        return {"success": True, "session_id": session_id, "deleted": deleted}
 
     return router

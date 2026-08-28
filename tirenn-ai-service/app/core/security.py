@@ -2,7 +2,7 @@ import time
 import logging
 from collections import defaultdict
 from threading import Lock
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 import redis
 from fastapi import Request, Response, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -177,6 +177,50 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         response.headers["X-RateLimit-Reset"] = "60"
         return response
+
+def verify_jwt_token(request: Request) -> Dict[str, Any]:
+    """Extracts and validates JWT token issued by Golang backend"""
+    import jwt
+
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header (expected 'Bearer <token>')"
+        )
+
+    token = auth_header[7:].strip()
+    try:
+        claims = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_exp": True}
+        )
+        return claims
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="JWT token has expired. Please sign in again."
+        )
+    except jwt.InvalidTokenError as e:
+        logger.warning(f"Invalid JWT token received: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid JWT authentication token."
+        )
+
+def verify_admin_jwt(request: Request) -> Dict[str, Any]:
+    """Enforces that caller has valid JWT with ADMIN role"""
+    claims = verify_jwt_token(request)
+    role = claims.get("role")
+    if role != "ADMIN":
+        logger.warning(f"Access denied: user {claims.get('email')} has role '{role}', expected 'ADMIN'")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: Administrator privileges required."
+        )
+    return claims
 
 def verify_internal_api_key(request: Request):
     """Optional dependency to secure admin sync/indexing endpoints with an API key"""

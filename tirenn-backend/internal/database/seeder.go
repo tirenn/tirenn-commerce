@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gocommerce-backend/internal/domain/auth"
+	"gocommerce-backend/internal/domain/knowledge"
 	"gocommerce-backend/internal/domain/order"
 	"gocommerce-backend/internal/domain/product"
 	"gocommerce-backend/internal/utils"
@@ -35,6 +36,8 @@ func Seed(db *gorm.DB) error {
 		&product.StockAdjustmentLog{},
 		&order.Order{},
 		&order.OrderItem{},
+		&knowledge.KnowledgeDocument{},
+		&knowledge.KnowledgeChunk{},
 	); err != nil {
 		log.Printf("AutoMigrate error: %v\n", err)
 		return err

@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from app.harness.tools.base import BaseTool
 from app.core.config import settings
 from app.repositories.product_repository import ProductRepository
@@ -82,7 +82,18 @@ class SearchProductsTool(BaseTool):
         max_price = normalize_price(args.get("max_price"))
         in_stock = args.get("in_stock")
 
+        if len(query) < 3 and cat_id == 0:
+            return {
+                "status": "insufficient_query",
+                "found_count": 0,
+                "products": [],
+                "_raw_query": query,
+                "_full_products": []
+            }
+
         cats = self.product_repo.get_categories_map()
+        if cat_id not in cats:
+            cat_id = 0
         cat_name = cats.get(cat_id, "all")
 
         logger.info(
@@ -116,17 +127,20 @@ class SearchProductsTool(BaseTool):
                 in_stock=in_stock
             )
 
-        if not results and cat_id > 0:
+        # Fallback relaxing category if LLM provided incorrect category
+        if not results and (cat_id > 0 or sub_cat_id > 0):
             results = self.search_usecase.execute(
-                query=cat_name if cat_name != "all" else query,
-                limit=15,
-                category_id=cat_id,
-                sub_category_id=sub_cat_id,
-                score_threshold=0.0,
+                query=query,
+                limit=settings.CHAT_SEARCH_LIMIT,
+                category_id=0,
+                sub_category_id=0,
+                score_threshold=settings.CHAT_SEARCH_FALLBACK_THRESHOLD,
                 min_price=min_price,
                 max_price=max_price,
                 in_stock=in_stock
             )
+
+        results = results[:settings.CHAT_SEARCH_LIMIT]
 
         formatted = [
             {
@@ -166,60 +180,89 @@ class SearchProductsTool(BaseTool):
             "_full_products": formatted
         }
 
+def _lookup_product_by_sku(
+    sku: str,
+    product_repo: ProductRepository
+) -> Tuple[Optional[Any], str]:
+    """
+    Directly looks up a product strictly by SKU.
+    Returns (Product, status_str):
+      - (Product, 'found')
+      - (None, 'need_clarification')
+      - (None, 'not_found')
+    """
+    clean_sku = (sku or "").strip()
+    if not clean_sku:
+        return None, "need_clarification"
 
-class CheckProductStockTool(BaseTool):
-    """Tool for checking real-time inventory and pricing of specific product"""
+    # Direct SQL lookup strictly by SKU
+    prod = product_repo.get_product_by_sku(clean_sku)
+    if prod:
+        return prod, "found"
 
-    name = "check_product_stock"
-    description = "Check real-time stock quantity and price of a product by name, keyword, or SKU."
+    return None, "not_found"
+
+
+class GetProductDetailTool(BaseTool):
+    """Tool for retrieving full specifications, materials, and features of a specific product by SKU"""
+
+    name = "get_product_detail"
+    description = "Get in-depth product details, specifications, materials, features, rating, and value proposition of a specific product by SKU."
     parameters_schema = {
         "type": "object",
         "properties": {
-            "product_name_or_query": {
+            "sku": {
                 "type": "string",
-                "description": "Product name or SKU to check (e.g. 'AuraSound', 'AUD-001', 'Kopi Gayo')."
-            },
-            "product_id": {
-                "type": "integer",
-                "description": "Product ID if known."
+                "description": "Product SKU (e.g. 'ID-AUD-001', 'ID-WCL-001', 'EN-AUD-003')."
             }
-        }
+        },
+        "required": ["sku"]
     }
 
-    def __init__(self, product_repo: ProductRepository, search_usecase: SearchUseCase):
+    def __init__(self, product_repo: ProductRepository, search_usecase: Optional[SearchUseCase] = None):
         self.product_repo = product_repo
-        self.search_usecase = search_usecase
 
     async def execute(self, args: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        p_id = args.get("product_id")
-        query = (args.get("product_name_or_query") or "").strip()
+        sku = (args.get("sku") or "").strip()
+        logger.info(f"📖 [TOOL: get_product_detail] sku='{sku}'")
 
-        logger.info(f"📦 [TOOL: check_product_stock] product_name_or_query='{query}' | product_id={p_id}")
+        if not sku:
+            return {
+                "status": "need_clarification"
+            }
 
-        prod = None
-        if p_id and int(p_id) <= 2000:
-            prod = self.product_repo.get_product_by_id(int(p_id))
+        prod, status = _lookup_product_by_sku(
+            sku=sku,
+            product_repo=self.product_repo
+        )
 
-        if not prod and query:
-            prod = self.product_repo.get_product_by_sku_or_name(query)
+        if status == "need_clarification":
+            return {
+                "status": "need_clarification"
+            }
 
-        if not prod and query:
-            search_res = self.search_usecase.execute(query=query, limit=1, score_threshold=0.10)
-            if search_res:
-                prod = self.product_repo.get_product_by_id(search_res[0].id)
-
-        if not prod:
-            return {"status": "not_found", "message": f"Product '{query or p_id}' not found in catalog."}
+        if status == "not_found" or not prod:
+            return {
+                "status": "not_found",
+                "sku": sku
+            }
 
         curr = prod.currency or ("USD" if prod.sku.startswith("EN-") else "IDR")
+        category_name = prod.category_name if hasattr(prod, "category_name") and prod.category_name else "Umum"
+        sub_category_name = prod.sub_category_name if hasattr(prod, "sub_category_name") and prod.sub_category_name else ""
 
         return {
             "status": "found",
             "id": prod.id,
             "name": prod.name,
             "sku": prod.sku,
+            "category": category_name,
+            "sub_category": sub_category_name,
+            "description": prod.description,
             "price": prod.price,
             "currency": curr,
+            "rating": getattr(prod, "rating", 4.8),
+            "badge": getattr(prod, "badge", ""),
             "stock_quantity": prod.stock_quantity,
             "in_stock": prod.stock_quantity > 0,
             "_full_product": {
@@ -233,4 +276,130 @@ class CheckProductStockTool(BaseTool):
                 "in_stock": prod.stock_quantity > 0,
                 "score": 1.0
             }
+        }
+
+
+class GetProductStockTool(BaseTool):
+    """Tool for checking real-time inventory and pricing of specific product by SKU"""
+
+    name = "get_product_stock"
+    description = "Check real-time stock quantity, stock status (ready/low/out of stock), and price of a product by SKU."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "sku": {
+                "type": "string",
+                "description": "Product SKU to check (e.g. 'ID-AUD-001', 'ID-WCL-001', 'EN-AUD-003')."
+            }
+        },
+        "required": ["sku"]
+    }
+
+    def __init__(self, product_repo: ProductRepository, search_usecase: Optional[SearchUseCase] = None):
+        self.product_repo = product_repo
+
+    async def execute(self, args: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        sku = (args.get("sku") or "").strip()
+        logger.info(f"📦 [TOOL: get_product_stock] sku='{sku}'")
+
+        if not sku:
+            return {
+                "status": "need_clarification"
+            }
+
+        prod, status = _lookup_product_by_sku(
+            sku=sku,
+            product_repo=self.product_repo
+        )
+
+        if status == "need_clarification":
+            return {
+                "status": "need_clarification"
+            }
+
+        if status == "not_found" or not prod:
+            return {
+                "status": "not_found",
+                "sku": sku
+            }
+
+        curr = prod.currency or ("USD" if prod.sku.startswith("EN-") else "IDR")
+
+        stock_status = "ready_stock"
+        if prod.stock_quantity <= 0:
+            stock_status = "out_of_stock"
+        elif prod.stock_quantity <= 5:
+            stock_status = "low_stock"
+
+        return {
+            "status": "found",
+            "id": prod.id,
+            "name": prod.name,
+            "sku": prod.sku,
+            "price": prod.price,
+            "currency": curr,
+            "stock_quantity": prod.stock_quantity,
+            "stock_status": stock_status,
+            "in_stock": prod.stock_quantity > 0,
+            "_full_product": {
+                "id": prod.id,
+                "name": prod.name,
+                "sku": prod.sku,
+                "price": prod.price,
+                "currency": curr,
+                "image_url": prod.image_url,
+                "stock_quantity": prod.stock_quantity,
+                "in_stock": prod.stock_quantity > 0,
+                "score": 1.0
+            }
+        }
+
+
+CheckProductStockTool = GetProductStockTool
+
+
+class SearchStorePoliciesAndSOPTool(BaseTool):
+    """Tool for querying the RAG knowledge base regarding shopping SOP, warranty, returns, and merchant operations"""
+
+    name = "search_store_policies_and_sop"
+    description = "Search store policies, customer buying guide SOP, return/warranty terms, shipping SLA, and merchant operations from official knowledge documents."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Question or topic regarding store SOP, buying instructions, warranty, refund/returns, or shipping (e.g. 'cara retur barang cacat', 'kebijakan garansi', 'SLA waktu pengiriman'). Required."
+            }
+        },
+        "required": ["query"]
+    }
+
+    def __init__(self, knowledge_usecase):
+        self.knowledge_usecase = knowledge_usecase
+
+    async def execute(self, args: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        query = (args.get("query") or "").strip()
+        logger.info(f"📚 [TOOL: search_store_policies_and_sop] query='{query}'")
+
+        if not self.knowledge_usecase:
+            return {"status": "error", "message": "Knowledge Base is not initialized."}
+
+        results = self.knowledge_usecase.query_knowledge(query=query, limit=3, score_threshold=0.15)
+        if not results:
+            return {"status": "not_found", "message": f"No specific policy or SOP found for '{query}'."}
+
+        formatted = [
+            {
+                "document": r.get("document_title"),
+                "page": r.get("page_number"),
+                "excerpt": r.get("content"),
+                "relevance_score": round(r.get("score", 0.0), 3)
+            }
+            for r in results
+        ]
+
+        return {
+            "status": "found",
+            "found_count": len(formatted),
+            "policy_excerpts": formatted
         }

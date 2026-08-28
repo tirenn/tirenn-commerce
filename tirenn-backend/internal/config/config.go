@@ -81,6 +81,7 @@ type Config struct {
 	RateLimitWindowSeconds int
 	JWTSecret              string
 	JWTExpireHours         int
+	InternalAPIKey         string
 }
 
 // LoadConfig initializes Viper, binds environment variables, loads .env if present, and returns Config
@@ -91,6 +92,7 @@ func LoadConfig(paths ...string) *Config {
 	v.SetDefault("PORT", "8080")
 	v.SetDefault("ENVIRONMENT", "development")
 	v.SetDefault("AI_SERVICE_URL", "http://localhost:8000")
+	v.SetDefault("INTERNAL_API_KEY", "very-very-secret-internal-key-2026")
 	v.SetDefault("DB_HOST", "127.0.0.1")
 	v.SetDefault("DB_PORT", "5432")
 	v.SetDefault("DB_USER", "gouser")
@@ -155,6 +157,7 @@ func LoadConfig(paths ...string) *Config {
 	cfg.RateLimitWindowSeconds = v.GetInt("RATE_LIMIT_WINDOW_SECONDS")
 	cfg.JWTSecret = v.GetString("JWT_SECRET")
 	cfg.JWTExpireHours = v.GetInt("JWT_EXPIRE_HOURS")
+	cfg.InternalAPIKey = v.GetString("INTERNAL_API_KEY")
 
 	// Populate nested structs
 	cfg.Server.Port = cfg.Port

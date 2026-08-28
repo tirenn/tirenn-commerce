@@ -27,7 +27,7 @@ class SearchUseCase:
         enable_hybrid: Optional[bool] = None
     ) -> List[ScoredProduct]:
         clean_q = query.strip()
-        if not clean_q:
+        if len(clean_q) < 3:
             return []
 
         limit_val = limit if limit is not None else settings.SEARCH_LIMIT

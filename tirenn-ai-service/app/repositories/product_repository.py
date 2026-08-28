@@ -255,9 +255,9 @@ class ProductRepository:
             logger.error(f"Error executing direct product lookup by ID ({product_id}): {e}", exc_info=True)
             return None
 
-    def get_product_by_sku_or_name(self, query: str) -> Optional[Product]:
-        """Direct SQL lookup by SKU or exact/ILIKE product name"""
-        clean_q = query.strip()
+    def get_product_by_sku(self, sku: str) -> Optional[Product]:
+        """Direct SQL lookup strictly by SKU"""
+        clean_sku = sku.strip()
         sql = """
             SELECT p.id, p.name, p.sku, p.category_id, p.sub_category_id,
                    COALESCE(sc.name, '') AS sub_category_name,
@@ -266,20 +266,13 @@ class ProductRepository:
                    p.stock_quantity, p.badge, p.description, p.is_active
             FROM products p
             LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
-            WHERE p.is_active = true
-              AND (
-                UPPER(p.sku) = UPPER(%s)
-                OR p.name ILIKE %s
-                OR similarity(p.name, %s) > 0.4
-              )
-            ORDER BY (UPPER(p.sku) = UPPER(%s)) DESC, similarity(p.name, %s) DESC
+            WHERE UPPER(p.sku) = UPPER(%s) AND p.is_active = true
             LIMIT 1;
         """
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    like_pattern = f"%{clean_q}%"
-                    cur.execute(sql, (clean_q, like_pattern, clean_q, clean_q, clean_q))
+                    cur.execute(sql, (clean_sku,))
                     row = cur.fetchone()
                     if row:
                         return Product(
@@ -299,7 +292,7 @@ class ProductRepository:
                         )
             return None
         except Exception as e:
-            logger.error(f"Error executing direct product lookup by name/SKU ({query}): {e}", exc_info=True)
+            logger.error(f"Error executing direct product lookup by SKU ({sku}): {e}", exc_info=True)
             return None
 
     def get_categories_map(self) -> Dict[int, str]:

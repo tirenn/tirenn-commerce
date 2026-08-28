@@ -1,57 +1,73 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from app.domain.chat import ChatMessage, ChatShopperResult
 from app.repositories.llm_repository import LLMRepository
 from app.repositories.product_repository import ProductRepository
 from app.usecases.search_usecase import SearchUseCase
+from app.usecases.knowledge_usecase import KnowledgeUseCase
 from app.harness.agent import AgentHarness
-from app.harness.tools.catalog_tools import SearchProductsTool, CheckProductStockTool
-from app.harness.tools.cart_tools import AddToCartTool
+from app.harness.tools.catalog_tools import SearchProductsTool, GetProductStockTool, GetProductDetailTool, SearchStorePoliciesAndSOPTool
+from app.repositories.session_repository import SessionRepository
+from app.harness.tools.cart_tools import AddToCartTool, ViewCartTool
 
 logger = logging.getLogger("ai-service.usecase.shopper")
 
 SYSTEM_PROMPT = """You are 'Tirenn AI Shopper', a smart, honest, friendly, and bilingual AI shopping assistant for Tirenn Commerce.
 
-Bilingual & Communication Guidelines:
-1. Automatically detect the user's language (Bahasa Indonesia or English) and reply fluently in the SAME language.
-2. Be polite, concise, and helpful with product recommendations, comparisons, and purchasing advice.
-3. MANDATORY TOOL CALLING:
-   - If the user searches for products, asks for recommendations, or mentions product types (e.g. 'cari celana panjang pria', 'find wireless headphones', 'recommend specialty coffee', 'tas selempang wanita'), you MUST call the `search_products` tool.
-   - If the user asks for remaining stock or price of a specific product, call `check_product_stock`.
-   - If the user wants to add an item to their shopping cart (e.g. 'masukkan ke keranjang', 'add to cart', 'buy this'), call `add_to_cart`.
-4. Parameters:
-   - Convert shorthand price amounts to full numbers (e.g. 50k/50rb = 50000, 250rb = 250000, $20 = 320000 IDR, 1jt = 1000000).
-   - Leave `min_price` or `max_price` empty if user does not specify a budget.
-   - Set `in_stock=true` if user asks for ready/available stock.
-5. STRICT GROUNDING & RELEVANCE RULE: Only recommend and talk about products verified by the tools! Never hallucinate products, prices, or SKUs not in the catalog.
-6. NO IMAGE MARKDOWN: Do NOT include image URLs or markdown `![](...)` in your text reply; the system UI automatically displays product cards visually.
+STRICT BILINGUAL LANGUAGE POLICY:
+1. LANGUAGE DETECTION & MATCHING:
+   - Carefully inspect the language of the user's latest message.
+   - If the user writes in ENGLISH (e.g. 'find shoes', 'tell me about this product', 'check stock', 'add to cart', 'recommend women dress') -> YOU MUST RESPOND 100% IN ENGLISH.
+   - If the user writes in BAHASA INDONESIA (e.g. 'cari sepatu', 'jelaskan produk ini', 'cek stok', 'masukkan ke keranjang') -> YOU MUST RESPOND 100% IN BAHASA INDONESIA.
+   - NEVER reply in Indonesian if the user asks in English, and NEVER reply in English if the user asks in Indonesian.
 
-Contoh Pola / Examples:
-- User: "Find running shoes for men under 30 dollars" -> search_products(query="running shoes", max_price=500000, in_stock=true, category_id=2)
-- User: "Carikan celana panjang pria yang ready" -> search_products(query="celana panjang pria", in_stock=true, category_id=2)
-- User: "Add AuraSound headphones to cart" -> add_to_cart(product_name_or_query="AuraSound", quantity=1)
+2. AVAILABLE TOOLS & ACTIONS:
+   - 1. `search_products(query)`: Call when user searches or asks for product recommendations (e.g. 'cari celana panjang pria', 'recommend wireless headphones').
+   - 2. `get_product_detail(sku)`: Call when user asks for full specifications, materials, or features of a specific product by SKU.
+   - 3. `get_product_stock(sku)`: Call when user asks about remaining inventory, stock status, or price by SKU.
+   - 4. `add_to_cart(sku, qty)`: Call when user wants to add an item to the shopping cart by SKU and quantity (default 1).
+   - 5. `view_cart()`: Call when user asks to view what is currently inside their shopping cart.
+   - 6. `search_store_policies_and_sop(query)`: Call when user asks about return/warranty policies, payment methods, delivery times, or shopping procedures.
+
+3. STRICT GROUNDING RULE: Only provide facts, prices, policies, and products verified by the tools. Never hallucinate.
+4. RECOMMENDATION LIMIT: Present at most 6 products from the verified tool results. Never list more than 6 products.
+5. NO IMAGE MARKDOWN: Do NOT include image URLs or markdown `![](...)` in your text reply.
 """
 
 class ShopperUseCase:
-    """Enterprise Shopper UseCase powered by Tirenn Agent Harness"""
+    """Enterprise Shopper UseCase powered by Tirenn Agent Harness, Vector RAG & Redis Session Store"""
 
     def __init__(
         self,
         llm_repo: LLMRepository,
         product_repo: ProductRepository,
-        search_usecase: SearchUseCase
+        search_usecase: SearchUseCase,
+        knowledge_usecase: Optional[KnowledgeUseCase] = None,
+        session_repo: Optional[SessionRepository] = None
     ):
         self.llm_repo = llm_repo
         self.product_repo = product_repo
         self.search_usecase = search_usecase
+        self.knowledge_usecase = knowledge_usecase
+        self.session_repo = session_repo or SessionRepository()
 
         # Register tools in harness
         self.search_tool = SearchProductsTool(product_repo, search_usecase)
-        self.stock_tool = CheckProductStockTool(product_repo, search_usecase)
-        self.cart_tool = AddToCartTool(product_repo, search_usecase)
+        self.detail_tool = GetProductDetailTool(product_repo)
+        self.stock_tool = GetProductStockTool(product_repo)
+        self.cart_tool = AddToCartTool(product_repo)
+        self.view_cart_tool = ViewCartTool(product_repo)
+        self.knowledge_tool = SearchStorePoliciesAndSOPTool(knowledge_usecase)
 
-        self.tools = [self.search_tool, self.stock_tool, self.cart_tool]
+        self.tools = [
+            self.search_tool,
+            self.detail_tool,
+            self.stock_tool,
+            self.cart_tool,
+            self.view_cart_tool,
+            self.knowledge_tool,
+        ]
 
         # Initialize Agent Harness
         self.harness = AgentHarness(
@@ -65,11 +81,40 @@ class ShopperUseCase:
         self,
         messages: List[ChatMessage],
         is_authenticated: bool = False,
-        user_name: Optional[str] = None
+        user_name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        cart_items: Optional[List[Dict[str, Any]]] = None
     ) -> ChatShopperResult:
-        """Delegate conversational shopping turn to the Agent Harness"""
+        """Delegate conversational shopping and SOP inquiries to the Agent Harness with Redis session support"""
+        effective_messages = list(messages)
+
+        # If session_id provided, merge with Redis persistent history
+        if session_id and self.session_repo:
+            stored_history = self.session_repo.get_history(session_id)
+            if stored_history:
+                if len(messages) == 1:
+                    effective_messages = stored_history + [messages[0]]
+                elif len(messages) > len(stored_history):
+                    effective_messages = messages
+
         context = {
             "is_authenticated": is_authenticated,
-            "user_name": user_name
+            "user_name": user_name,
+            "session_id": session_id,
+            "cart_items": cart_items or []
         }
-        return await self.harness.run(messages=messages, context=context)
+
+        result = await self.harness.run(messages=effective_messages, context=context)
+
+        # Persist full updated history into Redis with auto-expiring TTL
+        if session_id and self.session_repo:
+            full_history = effective_messages + [ChatMessage(role="assistant", content=result.reply)]
+            self.session_repo.save_history(session_id, full_history)
+
+        return result
+
+    def delete_session(self, session_id: str) -> bool:
+        """Delete session history from Redis when session ends or is reset"""
+        if self.session_repo and session_id:
+            return self.session_repo.delete_session(session_id)
+        return False

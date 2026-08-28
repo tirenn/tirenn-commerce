@@ -94,7 +94,7 @@
   "ai_chat": {
     "title": "Tirenn AI Shopper",
     "subtitle": "Smart Shopping Assistant & Real-Time Recommendations",
-    "badge_model": "Qwen 2.5 1.5B (Fast CPU)",
+    "badge_model": "Qwen 2.5 3B (Fast CPU)",
     "placeholder": "Ask for recommendations, check stock, or ask AI to add to cart...",
     "send": "Send",
     "welcome_title": "Hi! I am Tirenn AI Shopper 👋",

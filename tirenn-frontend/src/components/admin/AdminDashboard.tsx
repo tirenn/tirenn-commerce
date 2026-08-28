@@ -73,6 +73,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onSelectView }) 
           >
             Fulfillment Queue
           </button>
+          <button
+            data-testid="admin-quick-knowledge"
+            onClick={() => onSelectView('admin-knowledge')}
+            className="bg-purple-700 hover:bg-purple-800 text-white font-semibold text-xs py-2 px-3.5 rounded-lg shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+          >
+            <span>📚</span>
+            <span>SOP & AI Knowledge</span>
+          </button>
         </div>
       </div>
 

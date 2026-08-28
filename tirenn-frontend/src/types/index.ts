@@ -6,7 +6,30 @@ export type AppView =
   | 'admin-dashboard'
   | 'admin-products'
   | 'admin-orders'
-  | 'admin-customers';
+  | 'admin-customers'
+  | 'admin-knowledge';
+
+export interface KnowledgeDocument {
+  id: number;
+  title: string;
+  doc_type: 'SOP_CUSTOMER' | 'SOP_ADMIN' | 'POLICY' | 'GENERAL' | string;
+  filename: string;
+  total_pages: number;
+  total_chunks: number;
+  created_at: string;
+}
+
+export interface KnowledgeChunkResult {
+  chunk_id: number;
+  document_id: number;
+  document_title: string;
+  doc_type: string;
+  filename: string;
+  chunk_index: number;
+  page_number: number;
+  content: string;
+  score: number;
+}
 
 export interface User {
   id: number;

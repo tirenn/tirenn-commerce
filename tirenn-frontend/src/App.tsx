@@ -22,6 +22,7 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { ProductManagement } from './components/admin/ProductManagement';
 import { OrderManagement } from './components/admin/OrderManagement';
 import { CustomerManagement } from './components/admin/CustomerManagement';
+import { KnowledgeManagement } from './components/admin/KnowledgeManagement';
 
 const PRODUCTS_PER_PAGE = 12;
 
@@ -235,6 +236,8 @@ export const App: React.FC = () => {
             <OrderManagement />
           ) : currentView === 'admin-customers' ? (
             <CustomerManagement />
+          ) : currentView === 'admin-knowledge' ? (
+            <KnowledgeManagement />
           ) : (
             <AdminDashboard onSelectView={setCurrentView} />
           )

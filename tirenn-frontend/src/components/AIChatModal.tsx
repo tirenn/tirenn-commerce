@@ -88,15 +88,19 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
 
   const isEn = i18n.language === 'en';
 
-  const INITIAL_MESSAGE: Message = {
-    id: 'welcome',
-    role: 'assistant',
-    content: isEn
+  const getWelcomeMessage = (lang: string) => {
+    return lang === 'en'
       ? 'Hi! 👋 I am **Tirenn AI Shopper**.\n\nHow can I help you today? You can ask for **gift recommendations**, search products by **price range**, or ask me to **add items to your shopping cart**!'
-      : 'Halo! 👋 Saya **Tirenn AI Shopper**.\n\nAda yang bisa saya bantu carikan hari ini? Anda bisa meminta **rekomendasi hadiah**, mencari produk dengan **batas harga tertentu**, atau meminta saya **memasukkan barang ke keranjang**!',
+      : 'Halo! 👋 Saya **Tirenn AI Shopper**.\n\nAda yang bisa saya bantu carikan hari ini? Anda bisa meminta **rekomendasi hadiah**, mencari produk dengan **batas harga tertentu**, atau meminta saya **memasukkan barang ke keranjang**!';
   };
 
-  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      content: getWelcomeMessage(i18n.language),
+    },
+  ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -111,8 +115,28 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
     }
   }, [messages, isOpen]);
 
+  // Dynamically update the initial welcome message when language changes
+  useEffect(() => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === 'welcome'
+          ? {
+              ...msg,
+              content: getWelcomeMessage(i18n.language),
+            }
+          : msg
+      )
+    );
+  }, [i18n.language]);
+
   const handleResetChat = () => {
-    setMessages([INITIAL_MESSAGE]);
+    setMessages([
+      {
+        id: 'welcome',
+        role: 'assistant',
+        content: getWelcomeMessage(i18n.language),
+      },
+    ]);
     setInput('');
     showToast(isEn ? 'Chat history cleared' : 'Riwayat chat berhasil dibersihkan', 'info');
   };
@@ -157,7 +181,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: data.reply || (isEn ? 'Here are the matching products:' : 'Berikut adalah hasil yang saya temukan:'),
-        suggestedProducts: data.suggested_products || [],
+        suggestedProducts: (data.suggested_products || []).slice(0, 6),
         toolCalls: data.tool_calls || [],
       };
 
@@ -165,23 +189,26 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
 
       // If AI executed an add_to_cart action, dispatch to local CartContext (guest or user)
       const cartAction = data.cart_action;
-      if (cartAction && cartAction.action === 'cart_added' && cartAction.product) {
-        const prod = cartAction.product;
-        addToCart(
-          {
-            id: prod.id,
-            name: prod.name,
-            sku: prod.sku,
-            price: Number(prod.price || 0),
-            image_url: prod.image_url || '',
-            stock_quantity: Number(prod.stock_quantity || 99),
-          } as any,
-          prod.quantity || 1
-        );
-        showToast(
-          `🛒 ${prod.name} (${prod.quantity || 1}x) ${isEn ? 'added to cart!' : 'berhasil dimasukkan ke keranjang!'}`,
-          'success'
-        );
+      if (cartAction && cartAction.action === 'cart_added') {
+        const prod = cartAction.product || cartAction;
+        const targetId = prod.id || cartAction.id;
+        if (targetId) {
+          addToCart(
+            {
+              id: targetId,
+              name: prod.name || cartAction.name || '',
+              sku: prod.sku || cartAction.sku || '',
+              price: Number(prod.price || cartAction.price || 0),
+              image_url: prod.image_url || cartAction.image_url || '',
+              stock_quantity: Number(prod.stock_quantity || cartAction.stock_quantity || 99),
+            } as any,
+            prod.quantity || cartAction.quantity || 1
+          );
+          showToast(
+            `🛒 ${prod.name || cartAction.name} (${prod.quantity || cartAction.quantity || 1}x) ${isEn ? 'added to cart!' : 'berhasil dimasukkan ke keranjang!'}`,
+            'success'
+          );
+        }
       }
     } catch (err: any) {
       setMessages((prev) => [
@@ -258,7 +285,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
                 {m.role === 'user' ? (
                   <p className="text-xs leading-relaxed">{m.content}</p>
                 ) : (
-                  <FormattedMessageText text={m.content} />
+                  <FormattedMessageText text={m.id === 'welcome' ? getWelcomeMessage(i18n.language) : m.content} />
                 )}
               </div>
 

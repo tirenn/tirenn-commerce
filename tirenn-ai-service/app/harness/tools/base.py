@@ -23,3 +23,5 @@ class BaseTool(ABC):
                 "parameters": self.parameters_schema
             }
         }
+
+    to_openai_schema = to_openai_tool_schema

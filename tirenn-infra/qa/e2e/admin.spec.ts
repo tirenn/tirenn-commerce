@@ -38,4 +38,12 @@ test.describe('Admin Control Panel Functionality', () => {
     await page.getByTestId('admin-tab-customers').click();
     await expect(page.locator('text=Customer CRM Directory')).toBeVisible();
   });
+
+  test('4. Should navigate to SOP & AI Knowledge Base and view indexed documents', async ({ page }) => {
+    await page.getByTestId('admin-tab-knowledge').click();
+    await expect(page.locator('text=/Knowledge Base|Basis Pengetahuan/i')).toBeVisible();
+    await expect(page.locator('text=/Upload|Unggah/i').first()).toBeVisible();
+    await expect(page.locator('text=/Playground|Uji Coba/i')).toBeVisible();
+    await expect(page.locator('text=/Indexed|Terindeks/i').first()).toBeVisible();
+  });
 });

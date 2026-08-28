@@ -3,6 +3,7 @@ version: '3.8'
 # ==============================================================================
 # Tirenn Commerce - Core Infrastructure Stack
 # Services: PostgreSQL (pgvector), Redis, Ollama, Loki, Promtail, Grafana
+# All configuration values are loaded strictly from .env
 # ==============================================================================
 
 services:
@@ -11,16 +12,14 @@ services:
     image: pgvector/pgvector:pg16
     container_name: tirenn-postgres
     restart: always
-    environment:
-      POSTGRES_USER: gouser
-      POSTGRES_PASSWORD: gopassword
-      POSTGRES_DB: gocommerce_db
+    env_file:
+      - .env
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gouser -d gocommerce_db"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -32,8 +31,10 @@ services:
     image: redis:7-alpine
     container_name: tirenn-redis
     restart: always
+    env_file:
+      - .env
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -49,8 +50,10 @@ services:
     image: ollama/ollama:latest
     container_name: tirenn-ollama
     restart: always
+    env_file:
+      - .env
     ports:
-      - "11434:11434"
+      - "${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama_models:/root/.ollama
     networks:
@@ -61,8 +64,10 @@ services:
     image: grafana/loki:3.0.0
     container_name: tirenn-loki
     restart: always
+    env_file:
+      - .env
     ports:
-      - "3100:3100"
+      - "${LOKI_PORT:-3100}:3100"
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - ./logging/loki-config.yml:/etc/loki/local-config.yaml
@@ -89,12 +94,10 @@ services:
     image: grafana/grafana:latest
     container_name: tirenn-grafana
     restart: always
+    env_file:
+      - .env
     ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
+      - "${GRAFANA_PORT:-3001}:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./logging/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
