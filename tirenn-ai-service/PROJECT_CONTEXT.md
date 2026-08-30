@@ -24,7 +24,7 @@ app/
 │   └── session_repository.py  # Redis session storage with 24h auto-expiring TTL
 ├── harness/
 │   ├── agent.py               # Pure Domain-Agnostic ReAct Agent Harness engine
-│   └── tools/                 # BaseTool, SearchProductsTool, GetProductDetailTool, GetProductStockTool, AddToCartTool, ViewCartTool, SearchStorePoliciesAndSOPTool
+│   └── tools/                 # BaseTool, catalog_tools.py, cart_tools.py, knowledge_tools.py
 ├── usecases/
 │   ├── knowledge_usecase.py   # In-memory PDF text extraction, chunker & RAG retrieval
 │   ├── search_usecase.py      # Hybrid vector + trigram catalog search
@@ -76,6 +76,16 @@ The Shopper Agent dispatches specialized tools via the Agent Harness:
 - `[AI Service]` Integrated Redis Session Management (`SessionRepository`):
   - Session chat history stored under `chat:session:{session_id}` with auto-expiring 24h TTL.
   - Added `DELETE /api/v1/chat/session/{session_id}` endpoint to purge sessions on demand.
+- `[AI Service]` Enforced Hard Data Isolation for Customer SOP (`doc_type='SOP_CUSTOMER'`):
+  - Locked `SearchStorePoliciesAndSOPTool` to strictly query customer-facing knowledge documents (`doc_type="SOP_CUSTOMER"`), physically barring the public AI Shopper from retrieving internal merchant or administrative SOPs from PostgreSQL.
+  - Enhanced `SYSTEM_PROMPT` with strict customer-only data scope directives.
+- `[AI Service]` Decoupled Knowledge Tools into Dedicated Module (`knowledge_tools.py`):
+  - Extracted `SearchStorePoliciesAndSOPTool` out of `catalog_tools.py` into a clean, dedicated `app/harness/tools/knowledge_tools.py`.
+  - Maintained clear Single Responsibility Principle across tool domains (`catalog_tools.py`, `cart_tools.py`, `knowledge_tools.py`).
+- `[AI Service]` Upgraded Session Storage to Redis List Data Structure (`RPUSH` / `LRANGE` / `LTRIM`):
+  - Refactored `SessionRepository` to store chat exchanges as atomic items inside a Redis List (`chat:session:{session_id}`).
+  - Implemented Bounded Sliding Window Retrieval (`LRANGE -10 -1`), fetching strictly the last $N$ messages (`SESSION_HISTORY_LIMIT=10`) into the LLM context window.
+  - Added rolling list pruning (`LTRIM -50 -1` / `SESSION_MAX_STORED=50`) to keep Redis memory bounded, preventing context window saturation and ensuring fast, constant inference latency across long conversations.
 - `[AI Service]` Hardened Prompt Injection Defenses & External Document Isolation:
   - Added strict Security & Prompt Injection Immunity Directive in `SYSTEM_PROMPT` to protect system prompt privacy and reject jailbreak/DAN/override attempts.
   - Implemented boundary isolation tags (`<untrusted_document_content>`) in `SearchStorePoliciesAndSOPTool` to treat all external RAG document excerpts as passive reference data, mitigating indirect prompt injection risks.

@@ -56,9 +56,16 @@ class Settings(BaseSettings):
     RATE_LIMIT_GENERAL_PER_MINUTE: int = 300
     RATE_LIMIT_CHAT_PER_MINUTE: int = 180
     MAX_REQUEST_BODY_BYTES: int = 10_485_760  # 10MB
+
     # JWT Authentication Settings (Synced with Golang Backend)
     JWT_SECRET: str = "super-secret-tirenn-jwt-key-2026"
     JWT_ISSUER: str = "gocommerce-api"
+
+    # Redis Session History & Sliding Window Settings
+    SESSION_HISTORY_LIMIT: int = 10  # Number of past messages fetched for LLM context window
+    SESSION_MAX_STORED: int = 50     # Max messages retained in Redis List (via LTRIM)
+    SESSION_TTL_SECONDS: int = 86400 # 24-hour expiration for inactive chat sessions
+
     # Internal Machine-to-Machine Secret Key
     INTERNAL_API_KEY: str = "very-very-secret-internal-key-2026"
 

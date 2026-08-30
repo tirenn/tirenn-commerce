@@ -58,6 +58,20 @@ tirenn-commerce/
   - Maintained unique `sessionId` in `localStorage` and dispatched `session_id` payload on `/chat/shopper`.
   - Added asynchronous `DELETE /api/v1/chat/session/{sessionId}` call when the user clicks the "Reset Chat" button, instantly purging conversation memory from Redis and regenerating a clean session token.
 - `[Frontend]` Enhanced `AIChatModal.tsx` `cart_action` handler to reliably dispatch items into `CartContext` supporting both direct top-level payload attributes and nested `cartAction.product` objects, ensuring items added via AI chat immediately appear in Cart Drawer and update the Cart badge.
+- `[AI Service]` Enforced Hard Data Isolation for Customer SOP (`doc_type='SOP_CUSTOMER'`):
+  - Locked `SearchStorePoliciesAndSOPTool` to strictly query customer-facing knowledge documents (`doc_type="SOP_CUSTOMER"`), physically barring the public AI Shopper from retrieving internal merchant or administrative SOPs from PostgreSQL.
+  - Enhanced `SYSTEM_PROMPT` with strict customer-only data scope directives.
+- `[Frontend]` Full i18n Localization Refactor (`KnowledgeManagement.tsx` & `AIChatModal.tsx`):
+  - Extracted all remaining hardcoded strings, toasts, badges, and playground UI text into `src/locales/en.json` and `src/locales/id.json` under `knowledge` and `ai_chat` keys.
+  - Replaced inline `isEn ? ... : ...` ternary logic with declarative `t('...')` translation calls with dynamic interpolation (`{{title}}`, `{{chunks}}`, `{{name}}`, `{{qty}}`).
+- `[Frontend]` Enhanced `KnowledgeManagement.tsx` with Clear Access Scope Badges (`🛍️ Customer Guide` vs `🔒 Admin Internal`) and Added Scope Filter to the Semantic Vector RAG Playground.
+- `[AI Service]` Decoupled Knowledge Tools into Dedicated Module (`knowledge_tools.py`):
+  - Extracted `SearchStorePoliciesAndSOPTool` out of `catalog_tools.py` into a clean, dedicated `app/harness/tools/knowledge_tools.py`.
+  - Maintained clear Single Responsibility Principle across tool domains (`catalog_tools.py`, `cart_tools.py`, `knowledge_tools.py`).
+- `[AI Service]` Upgraded Session Storage to Redis List Data Structure (`RPUSH` / `LRANGE` / `LTRIM`):
+  - Refactored `SessionRepository` to store chat exchanges as atomic items inside a Redis List (`chat:session:{session_id}`).
+  - Implemented Bounded Sliding Window Retrieval (`LRANGE -10 -1`), fetching strictly the last $N$ messages (`SESSION_HISTORY_LIMIT=10`) into the LLM context window.
+  - Added rolling list pruning (`LTRIM -50 -1` / `SESSION_MAX_STORED=50`) to keep Redis memory bounded, preventing context window saturation and ensuring fast, constant inference latency across long conversations.
 - `[AI Service]` Hardened Prompt Injection Defenses & External Document Isolation:
   - Added strict Security & Prompt Injection Immunity Directive in `SYSTEM_PROMPT` to protect system prompt privacy and reject jailbreak/DAN/override attempts.
   - Implemented boundary isolation tags (`<untrusted_document_content>`) in `SearchStorePoliciesAndSOPTool` to treat all external RAG document excerpts as passive reference data, mitigating indirect prompt injection risks.

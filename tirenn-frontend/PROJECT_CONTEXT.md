@@ -55,6 +55,9 @@ The application renders two primary view suites depending on user role and navig
 ### 📅 2026-08-28
 - `[Frontend]` Updated `AIChatModal.tsx` to render the initial welcome message dynamically through `getWelcomeMessage(i18n.language)` directly in the JSX tree, guaranteeing instant re-render upon language toggle (ID $\leftrightarrow$ EN) in both directions.
 - `[Frontend]` Rebuilt production Docker container `tirenn-frontend`.
+- `[Frontend]` Full i18n Localization Refactor (`KnowledgeManagement.tsx` & `AIChatModal.tsx`):
+  - Extracted all remaining hardcoded strings, toasts, badges, and playground UI text into `src/locales/en.json` and `src/locales/id.json` under `knowledge` and `ai_chat` keys.
+  - Replaced inline `isEn ? ... : ...` ternary logic with declarative `t('...')` translation calls with dynamic interpolation (`{{title}}`, `{{chunks}}`, `{{name}}`, `{{qty}}`).
 - `[Frontend]` Integrated Redis Chat Session Lifecycle into `AIChatModal.tsx`:
   - Maintained unique `sessionId` in `localStorage` and dispatched `session_id` payload on `/chat/shopper`.
   - Added asynchronous `DELETE /api/v1/chat/session/{sessionId}` call when the user clicks the "Reset Chat" button, instantly purging conversation memory from Redis and regenerating a clean session token.

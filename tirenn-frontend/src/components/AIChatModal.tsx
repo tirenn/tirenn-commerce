@@ -159,7 +159,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
       },
     ]);
     setInput('');
-    showToast(isEn ? 'Chat history cleared' : 'Riwayat chat berhasil dibersihkan', 'info');
+    showToast(t('ai_chat.history_cleared'), 'info');
   };
 
   const handleSend = async (textToSend?: string) => {
@@ -192,7 +192,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
       });
 
       if (res.status === 429) {
-        showToast(isEn ? 'Rate limit exceeded. Please wait a moment.' : 'Terlalu banyak permintaan. Mohon tunggu beberapa saat.', 'error');
+        showToast(t('ai_chat.rate_limit_exceeded'), 'error');
         throw new Error('Rate limit exceeded');
       }
 
@@ -202,7 +202,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.reply || (isEn ? 'Here are the matching products:' : 'Berikut adalah hasil yang saya temukan:'),
+        content: data.reply || t('ai_chat.matching_results'),
         suggestedProducts: (data.suggested_products || []).slice(0, 6),
         toolCalls: data.tool_calls || [],
       };
@@ -227,7 +227,10 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
             prod.quantity || cartAction.quantity || 1
           );
           showToast(
-            `🛒 ${prod.name || cartAction.name} (${prod.quantity || cartAction.quantity || 1}x) ${isEn ? 'added to cart!' : 'berhasil dimasukkan ke keranjang!'}`,
+            t('ai_chat.added_toast', {
+              name: prod.name || cartAction.name,
+              qty: prod.quantity || cartAction.quantity || 1
+            }),
             'success'
           );
         }
@@ -238,9 +241,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
         {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          content: isEn 
-            ? 'Sorry, I encountered an issue processing your request. Please try again shortly.' 
-            : 'Maaf, saya sedang kesulitan memproses permintaan Anda. Silakan coba lagi sebentar lagi.',
+          content: t('ai_chat.error_processing'),
         },
       ]);
     } finally {
@@ -330,7 +331,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
               {m.suggestedProducts && m.suggestedProducts.length > 0 && (
                 <div className="mt-2.5 w-full space-y-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-1">
-                    🛍️ {isEn ? 'Recommended Products' : 'Rekomendasi Produk Katalog'} ({m.suggestedProducts.length})
+                    🛍️ {t('ai_chat.recommended_catalog')} ({m.suggestedProducts.length})
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {m.suggestedProducts.map((p: any) => (
@@ -376,7 +377,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
                                 1
                               );
                               showToast(
-                                `🛒 ${p.name} ${isEn ? 'added to cart!' : 'berhasil dimasukkan ke keranjang!'}`,
+                                t('ai_chat.added_toast', { name: p.name, qty: 1 }),
                                 'success'
                               );
                             }}

@@ -7,11 +7,9 @@ import type { KnowledgeDocument, KnowledgeChunkResult } from '../../types';
 const AI_API_BASE_URL = import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:8000/api/v1';
 
 export const KnowledgeManagement: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { token } = useAuth();
   const { showToast } = useToast();
-
-  const isEn = i18n.language === 'en';
 
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
@@ -26,6 +24,7 @@ export const KnowledgeManagement: React.FC = () => {
 
   // RAG Search Playground States
   const [testQuery, setTestQuery] = useState('');
+  const [ragScope, setRagScope] = useState('ALL');
   const [searchingRAG, setSearchingRAG] = useState(false);
   const [ragResults, setRagResults] = useState<KnowledgeChunkResult[]>([]);
 
@@ -62,7 +61,7 @@ export const KnowledgeManagement: React.FC = () => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       if (!file.name.toLowerCase().endsWith('.pdf')) {
-        showToast(isEn ? 'Only PDF files are supported.' : 'Hanya file PDF yang didukung.', 'error');
+        showToast(t('knowledge.err_pdf_only'), 'error');
         return;
       }
       setSelectedFile(file);
@@ -76,13 +75,13 @@ export const KnowledgeManagement: React.FC = () => {
   const handleUploadAndIndex = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) {
-      showToast(isEn ? 'Please select a PDF file first.' : 'Pilih file PDF terlebih dahulu.', 'error');
+      showToast(t('knowledge.err_select_first'), 'error');
       return;
     }
 
     try {
       setUploading(true);
-      setUploadProgress(isEn ? 'Uploading & parsing PDF in-memory...' : 'Mengunggah & memproses PDF in-memory...');
+      setUploadProgress(t('knowledge.indexing_btn'));
 
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -104,9 +103,10 @@ export const KnowledgeManagement: React.FC = () => {
 
       const data = await res.json();
       showToast(
-        isEn
-          ? `✅ Successfully indexed "${data.document?.title || selectedFile.name}" with ${data.document?.total_chunks || 0} vector chunks!`
-          : `✅ Berhasil mengindeks "${data.document?.title || selectedFile.name}" menjadi ${data.document?.total_chunks || 0} chunk vektor!`,
+        t('knowledge.upload_success', {
+          title: data.document?.title || selectedFile.name,
+          chunks: data.document?.total_chunks || 0
+        }),
         'success'
       );
 
@@ -125,7 +125,7 @@ export const KnowledgeManagement: React.FC = () => {
 
   // Delete Document
   const handleDeleteDocument = async (docId: number, title: string) => {
-    if (!window.confirm(isEn ? `Delete knowledge document "${title}"?` : `Hapus dokumen pengetahuan "${title}"?`)) {
+    if (!window.confirm(t('knowledge.delete_confirm', { title }))) {
       return;
     }
 
@@ -137,7 +137,7 @@ export const KnowledgeManagement: React.FC = () => {
         }
       });
       if (res.ok) {
-        showToast(isEn ? 'Document deleted successfully.' : 'Dokumen berhasil dihapus.', 'info');
+        showToast(t('knowledge.delete_success'), 'info');
         loadDocuments();
       } else {
         throw new Error('Failed to delete document');
@@ -160,7 +160,8 @@ export const KnowledgeManagement: React.FC = () => {
         body: JSON.stringify({
           query: testQuery,
           limit: 4,
-          score_threshold: 0.10
+          score_threshold: 0.10,
+          doc_type: ragScope === 'ALL' ? undefined : ragScope
         })
       });
       if (res.ok) {
@@ -181,19 +182,17 @@ export const KnowledgeManagement: React.FC = () => {
         <div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
             <span className="text-2xl">📚</span>
-            {isEn ? 'AI Knowledge Base & Vector RAG' : 'Basis Pengetahuan AI & Vector RAG'}
+            {t('knowledge.title')}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            {isEn
-              ? 'Upload official SOP & store policies directly in-memory to power AI Shopper and Merchant Operations.'
-              : 'Unggah file SOP & kebijakan toko secara in-memory untuk mendukung AI Shopper dan Operasional Merchant.'}
+            {t('knowledge.subtitle')}
           </p>
         </div>
         <button
           onClick={loadDocuments}
           className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
         >
-          <span>🔄</span> {isEn ? 'Refresh Catalog' : 'Segarkan Data'}
+          <span>🔄</span> {t('knowledge.refresh')}
         </button>
       </div>
 
@@ -204,7 +203,7 @@ export const KnowledgeManagement: React.FC = () => {
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 mb-5">
               <span className="p-1.5 bg-purple-50 text-purple-600 rounded-lg text-xs">📤</span>
-              {isEn ? 'Upload & Index PDF (In-Memory)' : 'Unggah & Vektorisasi PDF (In-Memory)'}
+              {t('knowledge.upload_title')}
             </div>
 
             <form onSubmit={handleUploadAndIndex} className="space-y-4">
@@ -212,7 +211,7 @@ export const KnowledgeManagement: React.FC = () => {
               {/* Drag & Drop File Selector */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  {isEn ? 'Select PDF Document' : 'Pilih Dokumen PDF'}
+                  {t('knowledge.select_pdf')}
                 </label>
                 <div
                   onClick={() => fileInputRef.current?.click()}
@@ -234,17 +233,17 @@ export const KnowledgeManagement: React.FC = () => {
                       <span className="text-3xl block mb-2">📄</span>
                       <p className="font-bold text-xs text-purple-900 break-all">{selectedFile.name}</p>
                       <p className="text-[11px] text-purple-600 mt-1">
-                        {(selectedFile.size / 1024).toFixed(1)} KB • {isEn ? 'Ready to index' : 'Siap diproses'}
+                        {(selectedFile.size / 1024).toFixed(1)} KB • {t('knowledge.ready_to_index')}
                       </p>
                     </div>
                   ) : (
                     <div>
                       <span className="text-3xl block mb-2 text-slate-400">📑</span>
                       <p className="font-bold text-xs text-slate-700">
-                        {isEn ? 'Click or drag PDF file here' : 'Klik atau seret file PDF ke sini'}
+                        {t('knowledge.click_or_drag')}
                       </p>
                       <p className="text-[11px] text-slate-400 mt-1">
-                        {isEn ? 'PDF parsed directly in memory (never saved to disk)' : 'PDF diproses langsung di memori (tidak disimpan di disk)'}
+                        {t('knowledge.in_memory_note')}
                       </p>
                     </div>
                   )}
@@ -254,32 +253,35 @@ export const KnowledgeManagement: React.FC = () => {
               {/* Document Title */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {isEn ? 'Document Title / Label' : 'Judul / Nama Dokumen'}
+                  {t('knowledge.doc_title_label')}
                 </label>
                 <input
                   type="text"
                   value={docTitle}
                   onChange={(e) => setDocTitle(e.target.value)}
-                  placeholder={isEn ? 'e.g. SOP Customer Guide 2026' : 'contoh: SOP Panduan Belanja Pelanggan'}
+                  placeholder={t('knowledge.doc_title_placeholder')}
                   className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white focus:border-purple-600 font-medium transition-all"
                 />
               </div>
 
-              {/* Document Category / Type */}
+              {/* Document Category / Target Audience */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {isEn ? 'Knowledge Category' : 'Kategori Pengetahuan'}
+                  {t('knowledge.scope_label')}
                 </label>
                 <select
                   value={docType}
                   onChange={(e) => setDocType(e.target.value)}
                   className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white focus:border-purple-600 font-medium transition-all"
                 >
-                  <option value="SOP_CUSTOMER">🛍️ SOP Pelanggan / Panduan Belanja (Customer SOP)</option>
-                  <option value="SOP_ADMIN">🛡️ SOP Operasional Admin / Pemrosesan Order (Admin SOP)</option>
-                  <option value="POLICY">📜 Kebijakan Toko, Garansi & Retur (Store Policy)</option>
-                  <option value="GENERAL">📑 Panduan Umum / Manual (General Manual)</option>
+                  <option value="SOP_CUSTOMER">{t('knowledge.scope_customer_option')}</option>
+                  <option value="SOP_ADMIN">{t('knowledge.scope_admin_option')}</option>
                 </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  {docType === 'SOP_CUSTOMER'
+                    ? t('knowledge.scope_customer_hint')
+                    : t('knowledge.scope_admin_hint')}
+                </p>
               </div>
 
               {/* Upload Button */}
@@ -291,12 +293,12 @@ export const KnowledgeManagement: React.FC = () => {
                 {uploading ? (
                   <>
                     <span className="animate-spin text-sm">⚡</span>
-                    <span>{uploadProgress || (isEn ? 'Processing embeddings...' : 'Membuat vector embeddings...')}</span>
+                    <span>{uploadProgress || t('knowledge.indexing_btn')}</span>
                   </>
                 ) : (
                   <>
                     <span>⚡</span>
-                    <span>{isEn ? 'Index to PostgreSQL pgvector' : 'Indeks ke PostgreSQL pgvector'}</span>
+                    <span>{t('knowledge.index_btn')}</span>
                   </>
                 )}
               </button>
@@ -312,31 +314,29 @@ export const KnowledgeManagement: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
               <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                 <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs">📑</span>
-                {isEn ? 'Indexed Knowledge Documents' : 'Dokumen Pengetahuan Terindeks'} ({documents.length})
+                {t('knowledge.indexed_docs_title')} ({documents.length})
               </div>
             </div>
 
             {loadingDocs ? (
               <div className="py-12 text-center text-xs text-slate-400 animate-pulse">
-                Loading knowledge documents...
+                Loading...
               </div>
             ) : documents.length === 0 ? (
               <div className="py-12 text-center text-xs text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl p-6">
                 <span className="text-2xl block mb-2">📂</span>
-                {isEn
-                  ? 'No PDF documents indexed yet. Upload the Customer or Admin SOP to get started!'
-                  : 'Belum ada dokumen PDF terindeks. Unggah SOP Pelanggan atau SOP Admin untuk memulai!'}
+                {t('knowledge.no_docs')}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                      <th className="py-2.5 px-3">Title / Document</th>
-                      <th className="py-2.5 px-3">Category</th>
-                      <th className="py-2.5 px-3 text-center">Pages</th>
-                      <th className="py-2.5 px-3 text-center">Chunks</th>
-                      <th className="py-2.5 px-3 text-right">Action</th>
+                      <th className="py-2.5 px-3">{t('knowledge.col_title')}</th>
+                      <th className="py-2.5 px-3">{t('knowledge.col_scope')}</th>
+                      <th className="py-2.5 px-3 text-center">{t('knowledge.col_pages')}</th>
+                      <th className="py-2.5 px-3 text-center">{t('knowledge.col_chunks')}</th>
+                      <th className="py-2.5 px-3 text-right">{t('knowledge.col_action')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -347,14 +347,12 @@ export const KnowledgeManagement: React.FC = () => {
                           <div className="text-[10px] text-slate-400 font-mono mt-0.5">{doc.filename}</div>
                         </td>
                         <td className="py-3 px-3">
-                          <span className={`inline-block px-2 py-0.5 rounded-md font-mono text-[10px] font-semibold ${
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold ${
                             doc.doc_type === 'SOP_CUSTOMER'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : doc.doc_type === 'SOP_ADMIN'
-                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
                           }`}>
-                            {doc.doc_type}
+                            {doc.doc_type === 'SOP_CUSTOMER' ? t('knowledge.badge_customer') : t('knowledge.badge_admin')}
                           </span>
                         </td>
                         <td className="py-3 px-3 text-center font-mono text-slate-600">
@@ -367,7 +365,7 @@ export const KnowledgeManagement: React.FC = () => {
                           <button
                             onClick={() => handleDeleteDocument(doc.id, doc.title)}
                             className="text-slate-400 hover:text-rose-600 transition-colors p-1 rounded-md hover:bg-rose-50 cursor-pointer"
-                            title={isEn ? 'Delete document' : 'Hapus dokumen'}
+                            title={t('admin.delete')}
                           >
                             🗑️
                           </button>
@@ -382,9 +380,23 @@ export const KnowledgeManagement: React.FC = () => {
 
           {/* RAG Interactive Semantic Playground */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4">
-              <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-xs">🎯</span>
-              {isEn ? 'Semantic Vector RAG Playground' : 'Uji Coba Semantic Vector RAG'}
+            <div className="flex items-center justify-between gap-2 text-sm font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-xs">🎯</span>
+                {t('knowledge.playground_title')}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-normal">
+                <span className="text-[11px] text-slate-400 font-semibold">{t('knowledge.scope_filter_label')}</span>
+                <select
+                  value={ragScope}
+                  onChange={(e) => setRagScope(e.target.value)}
+                  className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none font-medium focus:border-emerald-600"
+                >
+                  <option value="ALL">{t('knowledge.scope_all')}</option>
+                  <option value="SOP_CUSTOMER">{t('knowledge.scope_customer')}</option>
+                  <option value="SOP_ADMIN">{t('knowledge.scope_admin')}</option>
+                </select>
+              </div>
             </div>
 
             <form onSubmit={handleTestRAG} className="flex gap-2 mb-4">
@@ -392,7 +404,7 @@ export const KnowledgeManagement: React.FC = () => {
                 type="text"
                 value={testQuery}
                 onChange={(e) => setTestQuery(e.target.value)}
-                placeholder={isEn ? 'Ask anything (e.g. "SLA pengiriman", "cara retur barang")...' : 'Tanya apapun seputar SOP (contoh: "SLA pengiriman", "cara retur barang")...'}
+                placeholder={t('knowledge.search_placeholder')}
                 className="flex-1 text-xs bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 outline-none focus:bg-white focus:border-emerald-600 font-medium transition-all"
               />
               <button
@@ -401,7 +413,7 @@ export const KnowledgeManagement: React.FC = () => {
                 className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
                 {searchingRAG ? <span className="animate-spin">⚡</span> : <span>🔍</span>}
-                <span>{isEn ? 'Test Query' : 'Cari Chunk'}</span>
+                <span>{t('knowledge.test_btn')}</span>
               </button>
             </form>
 
@@ -409,7 +421,7 @@ export const KnowledgeManagement: React.FC = () => {
             {ragResults.length > 0 && (
               <div className="space-y-3 mt-4 pt-4 border-t border-slate-100">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                  {isEn ? `Retrieved Chunks (${ragResults.length})` : `Chunk Terpilih (${ragResults.length})`}
+                  {t('knowledge.retrieved_chunks', { count: ragResults.length })}
                 </span>
                 <div className="space-y-2.5">
                   {ragResults.map((chunk, idx) => (
@@ -422,7 +434,7 @@ export const KnowledgeManagement: React.FC = () => {
                           <span>📄</span> {chunk.document_title} <span className="text-slate-400">(Hal {chunk.page_number})</span>
                         </span>
                         <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 text-[10px]">
-                          Similarity: {(chunk.score * 100).toFixed(1)}%
+                          {t('knowledge.similarity', { score: (chunk.score * 100).toFixed(1) })}
                         </span>
                       </div>
                       <p className="text-slate-600 text-[11px] leading-relaxed whitespace-pre-line bg-white p-2.5 rounded-lg border border-slate-100 font-sans">

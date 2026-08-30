@@ -3,8 +3,8 @@ from app.harness.tools.catalog_tools import (
     SearchProductsTool,
     GetProductDetailTool,
     GetProductStockTool,
-    SearchStorePoliciesAndSOPTool,
 )
+from app.harness.tools.knowledge_tools import SearchStorePoliciesAndSOPTool
 from app.harness.tools.cart_tools import AddToCartTool, ViewCartTool
 
 __all__ = [
