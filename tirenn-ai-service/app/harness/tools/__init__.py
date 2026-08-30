@@ -1,18 +1,9 @@
 from app.harness.tools.base import BaseTool
-from app.harness.tools.catalog_tools import (
-    SearchProductsTool,
-    GetProductDetailTool,
-    GetProductStockTool,
-)
-from app.harness.tools.knowledge_tools import SearchStorePoliciesAndSOPTool
-from app.harness.tools.cart_tools import AddToCartTool, ViewCartTool
+from app.harness.tools import customer
+from app.harness.tools import admin
 
 __all__ = [
     "BaseTool",
-    "SearchProductsTool",
-    "GetProductDetailTool",
-    "GetProductStockTool",
-    "SearchStorePoliciesAndSOPTool",
-    "AddToCartTool",
-    "ViewCartTool"
+    "customer",
+    "admin",
 ]

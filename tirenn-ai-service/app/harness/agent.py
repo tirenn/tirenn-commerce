@@ -10,7 +10,7 @@ from app.harness.tools.base import BaseTool
 logger = logging.getLogger("ai-service.harness.agent")
 
 class AgentHarness:
-    """Domain-Agnostic ReAct Agent Harness with Native LLM Tool Calling"""
+    """Domain-Agnostic ReAct Agent Harness with Native LLM Tool Calling and Multilingual Reasoning"""
 
     def __init__(
         self,
@@ -46,7 +46,11 @@ class AgentHarness:
             system_text += f"\nCustomer Context: Customer name is '{user_name}' (authenticated user)."
 
         formatted_messages = [{"role": "system", "content": system_text}] + [
-            {"role": m.role, "content": m.content} for m in messages
+            {
+                "role": m.role if hasattr(m, 'role') else m.get('role', 'user'),
+                "content": m.content if hasattr(m, 'content') else m.get('content', '')
+            }
+            for m in messages
         ]
 
         executed_tools_data: List[Dict[str, Any]] = []
@@ -143,12 +147,12 @@ class AgentHarness:
 
                     formatted_messages.append({
                         "role": "tool",
-                        "content": json.dumps(tool_result, ensure_ascii=False)
+                        "content": json.dumps(tool_result, ensure_ascii=False, default=str)
                     })
 
             # If max iterations reached without text reply, provide clean fallback
             if not final_reply:
-                final_reply = "Silakan beri tahu saya jika ada produk atau informasi lain yang ingin Anda ketahui!"
+                final_reply = "Silakan beri tahu saya jika ada informasi lain yang Anda butuhkan."
 
         except Exception as e:
             logger.error(f"AgentHarness execution error: {e}", exc_info=True)

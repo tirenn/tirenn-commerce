@@ -90,6 +90,7 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, rdb *redis.Client) *gin
 			admin.GET("/dashboard", handlers.Dashboard.GetDashboard)
 
 			// Catalog & Inventory Management
+			admin.GET("/products", handlers.Product.AdminListProducts)
 			admin.POST("/products", handlers.Product.CreateProduct)
 			admin.PUT("/products/:id", handlers.Product.UpdateProduct)
 			admin.DELETE("/products/:id", handlers.Product.DeleteProduct)

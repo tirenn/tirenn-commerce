@@ -5,7 +5,8 @@ from app.core.config import settings
 from app.repositories.product_repository import ProductRepository
 from app.usecases.search_usecase import SearchUseCase
 
-logger = logging.getLogger("ai-service.harness.tools.catalog")
+logger = logging.getLogger("ai-service.harness.tools.customer.catalog")
+
 
 def normalize_price(val: Optional[float]) -> Optional[float]:
     """Smart price normalizer: converts USD or shorthand thousands to Rupiah"""
@@ -22,6 +23,7 @@ def normalize_price(val: Optional[float]) -> Optional[float]:
     if 500 <= val < 1000:
         return val * 1000.0
     return val
+
 
 class SearchProductsTool(BaseTool):
     """Tool for searching product catalog using semantic search and attribute filtering"""
@@ -180,22 +182,16 @@ class SearchProductsTool(BaseTool):
             "_full_products": formatted
         }
 
+
 def _lookup_product_by_sku(
     sku: str,
     product_repo: ProductRepository
 ) -> Tuple[Optional[Any], str]:
-    """
-    Directly looks up a product strictly by SKU.
-    Returns (Product, status_str):
-      - (Product, 'found')
-      - (None, 'need_clarification')
-      - (None, 'not_found')
-    """
+    """Directly looks up a product strictly by SKU."""
     clean_sku = (sku or "").strip()
     if not clean_sku:
         return None, "need_clarification"
 
-    # Direct SQL lookup strictly by SKU
     prod = product_repo.get_product_by_sku(clean_sku)
     if prod:
         return prod, "found"
@@ -227,25 +223,13 @@ class GetProductDetailTool(BaseTool):
         logger.info(f"📖 [TOOL: get_product_detail] sku='{sku}'")
 
         if not sku:
-            return {
-                "status": "need_clarification"
-            }
+            return {"status": "need_clarification"}
 
-        prod, status = _lookup_product_by_sku(
-            sku=sku,
-            product_repo=self.product_repo
-        )
-
+        prod, status = _lookup_product_by_sku(sku=sku, product_repo=self.product_repo)
         if status == "need_clarification":
-            return {
-                "status": "need_clarification"
-            }
-
+            return {"status": "need_clarification"}
         if status == "not_found" or not prod:
-            return {
-                "status": "not_found",
-                "sku": sku
-            }
+            return {"status": "not_found", "sku": sku}
 
         curr = prod.currency or ("USD" if prod.sku.startswith("EN-") else "IDR")
         category_name = prod.category_name if hasattr(prod, "category_name") and prod.category_name else "Umum"
@@ -303,28 +287,15 @@ class GetProductStockTool(BaseTool):
         logger.info(f"📦 [TOOL: get_product_stock] sku='{sku}'")
 
         if not sku:
-            return {
-                "status": "need_clarification"
-            }
+            return {"status": "need_clarification"}
 
-        prod, status = _lookup_product_by_sku(
-            sku=sku,
-            product_repo=self.product_repo
-        )
-
+        prod, status = _lookup_product_by_sku(sku=sku, product_repo=self.product_repo)
         if status == "need_clarification":
-            return {
-                "status": "need_clarification"
-            }
-
+            return {"status": "need_clarification"}
         if status == "not_found" or not prod:
-            return {
-                "status": "not_found",
-                "sku": sku
-            }
+            return {"status": "not_found", "sku": sku}
 
         curr = prod.currency or ("USD" if prod.sku.startswith("EN-") else "IDR")
-
         stock_status = "ready_stock"
         if prod.stock_quantity <= 0:
             stock_status = "out_of_stock"

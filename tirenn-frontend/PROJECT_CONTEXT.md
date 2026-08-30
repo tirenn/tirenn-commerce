@@ -55,6 +55,14 @@ The application renders two primary view suites depending on user role and navig
 ### 📅 2026-08-28
 - `[Frontend]` Updated `AIChatModal.tsx` to render the initial welcome message dynamically through `getWelcomeMessage(i18n.language)` directly in the JSX tree, guaranteeing instant re-render upon language toggle (ID $\leftrightarrow$ EN) in both directions.
 - `[Frontend]` Rebuilt production Docker container `tirenn-frontend`.
+- `[Frontend]` Implemented Stock Adjustment Confirmation Guardrail (`StockAdjustmentModal.tsx`):
+  - Added 2-step verification guardrail displaying projected warehouse stock changes (Current Stock $\rightarrow$ Projected New Stock), operation type, and audit reasons with warning banners before submitting mutations.
+  - Fully localized in Indonesian & English via `react-i18next` under `"admin"`.
+- `[Frontend]` Implemented Admin AI Copilot UI & Rich Markdown Formatting (`AdminAIChatDrawer.tsx`):
+  - Added `AdminFormattedMessage` component supporting `**bold text**`, `*italic*`, `` `inline code / SKU` ``, bullet lists (`- `, `* `), numbered lists (`1. `), and header formatting (`### `), fixing unparsed markdown asterisks.
+  - Created interactive sliding drawer for Admin Control Panel (`/admin`) with one-click quick action chips (Revenue KPIs, Low Stock Warnings, Warehouse Picking SOP, Recent Orders).
+  - Added "⚡ Admin AI Copilot" button in Admin Navigation Tabs and floating action button on bottom-right of Admin Dashboard.
+  - Fully localized in Indonesian & English via `react-i18next` under `"admin_copilot"`.
 - `[Frontend]` Full i18n Localization Refactor (`KnowledgeManagement.tsx` & `AIChatModal.tsx`):
   - Extracted all remaining hardcoded strings, toasts, badges, and playground UI text into `src/locales/en.json` and `src/locales/id.json` under `knowledge` and `ai_chat` keys.
   - Replaced inline `isEn ? ... : ...` ternary logic with declarative `t('...')` translation calls with dynamic interpolation (`{{title}}`, `{{chunks}}`, `{{name}}`, `{{qty}}`).

@@ -174,7 +174,31 @@
     "save": "Simpan",
     "cancel": "Batal",
     "delete": "Hapus",
-    "confirm_delete": "Yakin ingin menghapus produk ini?"
+    "confirm_delete": "Yakin ingin menghapus produk ini?",
+    "stock_guardrail_title": "⚠️ Konfirmasi Penyesuaian Stok",
+    "stock_guardrail_desc": "Anda akan mengubah jumlah stok fisik gudang untuk produk ini. Tindakan ini akan dicatat permanen dalam riwayat audit log.",
+    "stock_before": "Stok Saat Ini",
+    "stock_after": "Proyeksi Stok Baru",
+    "stock_confirm_btn": "Ya, Lakukan Penyesuaian",
+    "stock_back_btn": "Kembali / Ubah"
+  },
+  "admin_copilot": {
+    "btn_open": "Admin AI Copilot",
+    "title": "Tirenn Admin AI Copilot",
+    "subtitle": "Asisten Pintar Omzet, Stok & SOP Merchant",
+    "badge_secure": "🔒 Akses Khusus Administrator Terotentikasi",
+    "welcome_title": "Halo Admin 👋",
+    "welcome_desc": "Saya adalah Asisten AI Operasional Merchant. Saya dapat merangkum metrik omzet, memantau produk stok menipis, menyesuaikan stok inventaris, dan membuka SOP internal gudang.",
+    "quick_metrics": "📊 Ringkasan Omzet & KPI",
+    "quick_low_stock": "⚠️ Cek Produk Stok Kritis",
+    "quick_sop_picking": "📑 SOP Picking & Packing Gudang",
+    "quick_recent_orders": "🚚 Status Pesanan Terbaru",
+    "placeholder": "Tanya seputar omzet, stok menipis, penyesuaian stok, atau SOP gudang...",
+    "send": "Kirim",
+    "thinking": "Menganalisis data toko & mengeksekusi tools...",
+    "history_cleared": "Riwayat chat admin berhasil dibersihkan",
+    "err_auth_required": "Token autentikasi Administrator diperlukan.",
+    "err_general": "Gagal terhubung dengan Admin AI Copilot."
   },
   "auth": {
     "login_title": "Masuk ke Akun Anda",

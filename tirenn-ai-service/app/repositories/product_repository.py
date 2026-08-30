@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Any
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from app.core.config import settings
@@ -324,3 +324,86 @@ class ProductRepository:
         except Exception as e:
             logger.error(f"Error fetching sub-categories from database: {e}", exc_info=True)
             return {}
+
+    def get_low_stock_products(self, threshold: int = 10, limit: int = 20) -> List[Dict[str, Any]]:
+        """Fetch products with stock quantity less than or equal to threshold"""
+        sql = """
+            SELECT p.id, p.name, p.sku, p.price, p.currency, p.stock_quantity, p.low_stock_threshold,
+                   c.name as category_name, sc.name as sub_category_name
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN sub_categories sc ON p.sub_category_id = sc.id
+            WHERE p.stock_quantity <= %s AND p.is_active = true
+            ORDER BY p.stock_quantity ASC, p.id ASC
+            LIMIT %s;
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(sql, (threshold, limit))
+                    rows = cur.fetchall()
+                    return [dict(r) for r in rows]
+        except Exception as e:
+            logger.error(f"Error fetching low stock products: {e}", exc_info=True)
+            return []
+
+    def adjust_stock(
+        self,
+        product_id: int,
+        adjustment_type: str,
+        amount: int,
+        reason: str,
+        adjusted_by: int = 1
+    ) -> Dict[str, Any]:
+        """
+        Atomically adjust product inventory stock and record immutable audit log in PostgreSQL
+        """
+        adj_type = adjustment_type.upper().strip()
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # 1. Lock target product row
+                    cur.execute("SELECT id, name, sku, price, stock_quantity, low_stock_threshold, is_active FROM products WHERE id = %s FOR UPDATE;", (product_id,))
+                    prod = cur.fetchone()
+                    if not prod:
+                        return {"success": False, "error": f"Product #{product_id} not found."}
+
+                    prev_stock = int(prod["stock_quantity"] or 0)
+
+                    if adj_type == "ADD":
+                        change_amount = amount
+                        new_stock = prev_stock + amount
+                    elif adj_type == "SUBTRACT":
+                        change_amount = -amount
+                        new_stock = max(0, prev_stock - amount)
+                    else:  # SET
+                        change_amount = amount - prev_stock
+                        new_stock = max(0, amount)
+
+                    # 2. Update product stock
+                    cur.execute("UPDATE products SET stock_quantity = %s, updated_at = NOW() WHERE id = %s;", (new_stock, product_id))
+
+                    # 3. Insert audit log
+                    cur.execute("""
+                        INSERT INTO stock_adjustment_logs (product_id, adjustment_type, quantity, previous_stock, new_stock, reason, adjusted_by, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                        RETURNING id, created_at;
+                    """, (product_id, adj_type, change_amount, prev_stock, new_stock, reason, adjusted_by))
+                    log_row = cur.fetchone()
+
+                    conn.commit()
+
+                    return {
+                        "success": True,
+                        "product_id": product_id,
+                        "product_name": prod["name"],
+                        "sku": prod["sku"],
+                        "previous_stock": prev_stock,
+                        "new_stock": new_stock,
+                        "change_amount": change_amount,
+                        "audit_log_id": log_row["id"] if log_row else None
+                    }
+        except Exception as e:
+            logger.error(f"Database error adjusting stock for product #{product_id}: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+

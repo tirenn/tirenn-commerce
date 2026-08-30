@@ -8,10 +8,15 @@ from app.repositories.product_repository import ProductRepository
 from app.usecases.search_usecase import SearchUseCase
 from app.usecases.knowledge_usecase import KnowledgeUseCase
 from app.harness.agent import AgentHarness
-from app.harness.tools.catalog_tools import SearchProductsTool, GetProductStockTool, GetProductDetailTool
-from app.harness.tools.knowledge_tools import SearchStorePoliciesAndSOPTool
+from app.harness.tools.customer import (
+    SearchProductsTool,
+    GetProductStockTool,
+    GetProductDetailTool,
+    SearchStorePoliciesAndSOPTool,
+    AddToCartTool,
+    ViewCartTool,
+)
 from app.repositories.session_repository import SessionRepository
-from app.harness.tools.cart_tools import AddToCartTool, ViewCartTool
 
 logger = logging.getLogger("ai-service.usecase.shopper")
 

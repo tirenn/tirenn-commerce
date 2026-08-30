@@ -72,7 +72,11 @@ internal/
 
 ### 📅 2026-08-28
 - `[Golang]` Configured `INTERNAL_API_KEY` in `internal/config/config.go` and wired `X-API-Key` headers in `internal/domain/product/ai_client.go`.
-- `[Golang]` Created Goose SQL migration `migrations/20260828000002_create_knowledge_tables.sql` for `knowledge_documents` and `knowledge_chunks` with HNSW vector cosine indexing.
+- `[Golang]` Fixed Admin Product Management Catalog Retrieval:
+  - Registered `admin.GET("/products", handlers.Product.AdminListProducts)` in `internal/router/router.go`.
+  - Updated `tirenn-backend/.env` with container hostnames (`DB_HOST=postgres`, `REDIS_HOST=redis`) for Docker network connectivity.
+  - Successfully validated retrieval of all 560 catalog products in Admin Product Management.
+- `[Golang]` Enforced Clean Architecture & Migration Rules:`migrations/20260828000002_create_knowledge_tables.sql` for `knowledge_documents` and `knowledge_chunks` with HNSW vector cosine indexing.
 - `[Golang]` Added `KnowledgeDocument` and `KnowledgeChunk` GORM models under `internal/domain/knowledge/entity.go`.
 - `[Golang]` Integrated `&knowledge.KnowledgeDocument{}` and `&knowledge.KnowledgeChunk{}` into `db.AutoMigrate(...)` in `internal/database/seeder.go`, removing all ad-hoc raw DDL executions.
 - `[Golang]` Rebuilt and restarted backend Docker container.

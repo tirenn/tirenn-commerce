@@ -73,7 +73,9 @@ class SessionRepository:
             key = self._get_key(session_id)
             pipe = self._client.pipeline()
             for m in messages:
-                payload = json.dumps({"role": m.role, "content": m.content}, ensure_ascii=False)
+                role = m.role if hasattr(m, 'role') else m.get('role', 'user')
+                content = m.content if hasattr(m, 'content') else m.get('content', '')
+                payload = json.dumps({"role": role, "content": content}, ensure_ascii=False, default=str)
                 pipe.rpush(key, payload)
             if self.max_stored > 0:
                 pipe.ltrim(key, -self.max_stored, -1)

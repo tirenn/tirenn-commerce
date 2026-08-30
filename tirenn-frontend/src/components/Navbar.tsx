@@ -11,6 +11,7 @@ interface NavbarProps {
   onSelectView: (view: AppView) => void;
   onOpenCart: () => void;
   onOpenAuth: () => void;
+  onOpenAdminAI?: () => void;
   searchTerm: string;
   onSearchChange: (term: string) => void;
 }
@@ -20,6 +21,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSelectView,
   onOpenCart,
   onOpenAuth,
+  onOpenAdminAI,
   searchTerm,
   onSearchChange,
 }) => {
@@ -143,6 +145,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <span>📚</span>
                 <span>{i18n.language === 'en' ? 'SOP & AI Knowledge' : 'SOP & Pengetahuan'}</span>
+              </button>
+              <button
+                data-testid="admin-tab-ai-copilot"
+                onClick={onOpenAdminAI}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white shadow-xs"
+              >
+                <span>⚡</span>
+                <span>{t('admin_copilot.btn_open')}</span>
               </button>
             </div>
           )}

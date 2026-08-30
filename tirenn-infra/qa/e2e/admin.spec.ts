@@ -46,4 +46,19 @@ test.describe('Admin Control Panel Functionality', () => {
     await expect(page.locator('text=/Playground|Uji Coba/i')).toBeVisible();
     await expect(page.locator('text=/Indexed|Terindeks/i').first()).toBeVisible();
   });
+
+  test('5. Should open Admin AI Copilot drawer and verify administrative access', async ({ page }) => {
+    // Open Admin AI Copilot via navbar button or floating button
+    const copilotBtn = page.getByTestId('admin-tab-ai-copilot');
+    await expect(copilotBtn).toBeVisible();
+    await copilotBtn.click();
+
+    // Verify Admin Copilot Drawer is open
+    await expect(page.locator('text=/Tirenn Admin AI Copilot/i').first()).toBeVisible();
+    await expect(page.locator('text=/Admin Only/i')).toBeVisible();
+    await expect(page.locator('button:has-text("📊")')).toBeVisible();
+    await expect(page.locator('button:has-text("⚠️")')).toBeVisible();
+    await expect(page.locator('button:has-text("📑")')).toBeVisible();
+  });
 });
+

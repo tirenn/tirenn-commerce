@@ -76,6 +76,23 @@ The Shopper Agent dispatches specialized tools via the Agent Harness:
 - `[AI Service]` Integrated Redis Session Management (`SessionRepository`):
   - Session chat history stored under `chat:session:{session_id}` with auto-expiring 24h TTL.
   - Added `DELETE /api/v1/chat/session/{session_id}` endpoint to purge sessions on demand.
+- `[AI Service]` Pure LLM Native Reasoning for 2-Step Confirmation (Zero Hardcoded Dictionaries):
+  - Removed all hardcoded affirmative/cancel keyword sets and interceptors.
+  - The model natively inspects conversational history, determines whether user agreed/confirmed (in any language or phrasing), and autonomously executes `adjust_product_stock` with `confirmed=true` or acknowledges cancellation.
+  - `ProductRepository.adjust_stock` commits atomic SQL transactions directly in PostgreSQL with audit log recording in `stock_adjustment_logs`.
+  - **`AnalyticsRepository` (`app/repositories/analytics_repository.py`)**: Direct PostgreSQL connection for real-time dashboard KPIs, financial totals, order items aggregation, and order histories (`get_dashboard_summary`, `get_top_selling_products`, `get_recent_orders`).
+  - **`ProductRepository.adjust_stock`**: Atomic SQL transaction locking target product row (`FOR UPDATE`), computing delta, updating `products.stock_quantity`, and recording immutable audit entry in `stock_adjustment_logs`.
+  - **Direct Tools Injection**: Updated `GetExecutiveDashboardMetricsTool`, `GetRecentOrdersOverviewTool`, and `AdjustProductStockTool` to query PostgreSQL directly via repositories without HTTP API overhead.
+  - **Clean Architecture & Natural Multilingual Reasoning**: Removed rule-based `detect_language` heuristic and dead tool files, allowing LLM to natively mirror language and format structured repository facts.
+- `[AI Service]` Implemented Phase 1 Admin AI Copilot (`AdminUseCase` & `POST /api/v1/chat/admin`):
+  - **Tool Directory Segregation**: Created distinct physical subdirectories `app/harness/tools/customer/` and `app/harness/tools/admin/`. Customer agent cannot load or execute admin tools and vice-versa.
+  - **Admin Tools & 2-Step Confirmation Guardrails**:
+    - `GetExecutiveDashboardMetricsTool`: Calls Go backend `GET /api/v1/admin/dashboard` using forwarded admin Bearer token.
+    - `GetRecentOrdersOverviewTool`: Calls Go backend `GET /api/v1/admin/orders`.
+    - `GetLowStockProductsTool`: Queries PostgreSQL for low stock items below threshold.
+    - `AdjustProductStockTool`: Implemented **2-Step Confirmation Guardrail** (`confirmed: bool`). When `confirmed=false`, tool blocks mutation and returns preview metadata (Product Name, SKU, Current Stock, Projected New Stock, Audit Reason) requiring explicit Admin approval before execution.
+    - `SearchAdminInternalSOPTool`: Executes vector RAG queries restricted strictly to `doc_type="SOP_ADMIN"`.
+  - **JWT Authorization**: Guarded `POST /api/v1/chat/admin` with `verify_admin_jwt` (enforcing `role == 'ADMIN'`).
 - `[AI Service]` Implemented 2-Tier Redis Semantic RAG Cache in `KnowledgeUseCase`:
   - **Tier 1 (Exact Hash Match)**: Stores hash keys (`rag:exact:{scope}:{hash}`) in Redis with 24h TTL for $< 1\text{ms}$ instantaneous responses.
   - **Tier 2 (Semantic Vector Similarity Match)**: Stores query embeddings in Redis List (`rag:semantic:{scope}`) and evaluates cosine similarity against active clusters in in-memory RAM. When $\ge 92\%$ similarity is reached, returns cached excerpts in $\approx 5\text{ms}$ without invoking PostgreSQL.

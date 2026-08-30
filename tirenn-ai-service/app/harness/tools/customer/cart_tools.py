@@ -4,7 +4,8 @@ from app.harness.tools.base import BaseTool
 from app.repositories.product_repository import ProductRepository
 from app.usecases.search_usecase import SearchUseCase
 
-logger = logging.getLogger("ai-service.harness.tools.cart")
+logger = logging.getLogger("ai-service.harness.tools.customer.cart")
+
 
 class AddToCartTool(BaseTool):
     """Tool for adding items to shopping cart for both guests and authenticated users by SKU"""
@@ -43,18 +44,12 @@ class AddToCartTool(BaseTool):
         )
 
         if not sku:
-            return {
-                "action": "need_clarification"
-            }
+            return {"action": "need_clarification"}
 
         # Direct SQL lookup strictly by SKU
         prod = self.product_repo.get_product_by_sku(sku)
-
         if not prod:
-            return {
-                "action": "not_found",
-                "sku": sku
-            }
+            return {"action": "not_found", "sku": sku}
 
         # Server-side stock re-validation
         if prod.stock_quantity <= 0:

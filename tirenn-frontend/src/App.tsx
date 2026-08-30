@@ -23,6 +23,7 @@ import { ProductManagement } from './components/admin/ProductManagement';
 import { OrderManagement } from './components/admin/OrderManagement';
 import { CustomerManagement } from './components/admin/CustomerManagement';
 import { KnowledgeManagement } from './components/admin/KnowledgeManagement';
+import { AdminAIChatDrawer } from './components/admin/AdminAIChatDrawer';
 
 const PRODUCTS_PER_PAGE = 12;
 
@@ -71,6 +72,7 @@ export const App: React.FC = () => {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
+  const [isAdminChatOpen, setIsAdminChatOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Sentinel Ref for IntersectionObserver
@@ -222,6 +224,7 @@ export const App: React.FC = () => {
         onSelectView={setCurrentView}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenAdminAI={() => setIsAdminChatOpen(true)}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
       />
@@ -351,6 +354,26 @@ export const App: React.FC = () => {
           <span className="text-base animate-bounce">🤖</span>
           <span>{t('hero.cta_ai')}</span>
         </button>
+      )}
+
+      {/* Floating Admin AI Copilot Button (Admin Only) */}
+      {isAdmin && (
+        <button
+          data-testid="admin-ai-floating-btn"
+          onClick={() => setIsAdminChatOpen(true)}
+          className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-purple-700 via-indigo-700 to-slate-900 hover:from-purple-800 hover:to-slate-950 text-white font-bold text-xs py-3 px-4 rounded-full shadow-xl flex items-center gap-2 transition-transform hover:scale-105 cursor-pointer border-2 border-white/80 ring-4 ring-purple-400/40"
+        >
+          <span className="text-base animate-bounce">⚡</span>
+          <span>{t('admin_copilot.btn_open')}</span>
+        </button>
+      )}
+
+      {/* Admin AI Copilot Drawer */}
+      {isAdmin && (
+        <AdminAIChatDrawer
+          isOpen={isAdminChatOpen}
+          onClose={() => setIsAdminChatOpen(false)}
+        />
       )}
 
       {/* Drawers & Modals (Storefront Only) */}

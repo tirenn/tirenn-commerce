@@ -58,9 +58,38 @@ tirenn-commerce/
   - Maintained unique `sessionId` in `localStorage` and dispatched `session_id` payload on `/chat/shopper`.
   - Added asynchronous `DELETE /api/v1/chat/session/{sessionId}` call when the user clicks the "Reset Chat" button, instantly purging conversation memory from Redis and regenerating a clean session token.
 - `[Frontend]` Enhanced `AIChatModal.tsx` `cart_action` handler to reliably dispatch items into `CartContext` supporting both direct top-level payload attributes and nested `cartAction.product` objects, ensuring items added via AI chat immediately appear in Cart Drawer and update the Cart badge.
+- `[Golang]` Fixed Admin Product Management Catalog Retrieval:
+  - Registered `admin.GET("/products", handlers.Product.AdminListProducts)` in `internal/router/router.go`.
+  - Updated `tirenn-backend/.env` with container hostnames (`DB_HOST=postgres`, `REDIS_HOST=redis`) for Docker network connectivity.
+  - Successfully validated retrieval of all 560 catalog products in Admin Product Management.
 - `[AI Service]` Enforced Hard Data Isolation for Customer SOP (`doc_type='SOP_CUSTOMER'`):
   - Locked `SearchStorePoliciesAndSOPTool` to strictly query customer-facing knowledge documents (`doc_type="SOP_CUSTOMER"`), physically barring the public AI Shopper from retrieving internal merchant or administrative SOPs from PostgreSQL.
   - Enhanced `SYSTEM_PROMPT` with strict customer-only data scope directives.
+- `[AI Service]` Pure LLM Native Reasoning for 2-Step Confirmation (Zero Hardcoded Dictionaries):
+  - Removed all hardcoded affirmative/cancel keyword sets and interceptors.
+  - The model natively inspects conversational history, determines whether user agreed/confirmed (in any language or phrasing), and autonomously executes `adjust_product_stock` with `confirmed=true` or acknowledges cancellation.
+  - `ProductRepository.adjust_stock` commits atomic SQL transactions directly in PostgreSQL with audit log recording in `stock_adjustment_logs`.
+  - **`AnalyticsRepository` (`app/repositories/analytics_repository.py`)**: Direct PostgreSQL queries for real-time dashboard KPIs, financial totals, order items aggregation, and order histories (`get_dashboard_summary`, `get_top_selling_products`, `get_recent_orders`).
+  - **`ProductRepository.adjust_stock`**: Atomic SQL transaction locking target product row (`FOR UPDATE`), computing delta, updating `products.stock_quantity`, and recording immutable audit entry in `stock_adjustment_logs`.
+  - **Direct Tools Injection**: Updated `GetExecutiveDashboardMetricsTool`, `GetRecentOrdersOverviewTool`, and `AdjustProductStockTool` to query PostgreSQL directly via repositories without HTTP API overhead.
+  - **Clean Architecture & Natural Multilingual Reasoning**: Removed rule-based `detect_language` heuristic and dead tool files, allowing LLM to natively mirror language and format structured repository facts.
+- `[AI Service]` Implemented Phase 1 Admin AI Copilot (`AdminUseCase` & `POST /api/v1/chat/admin`):
+  - **Tool Directory Segregation**: Created distinct physical subdirectories `app/harness/tools/customer/` and `app/harness/tools/admin/`. Customer agent cannot load or execute admin tools and vice-versa.
+  - **Admin Tools & 2-Step Confirmation Guardrails**:
+    - `GetExecutiveDashboardMetricsTool`: Calls Go backend `GET /api/v1/admin/dashboard` using forwarded admin Bearer token.
+    - `GetRecentOrdersOverviewTool`: Calls Go backend `GET /api/v1/admin/orders`.
+    - `GetLowStockProductsTool`: Queries PostgreSQL for low stock items below threshold.
+    - `AdjustProductStockTool`: Implemented **2-Step Confirmation Guardrail** (`confirmed: bool`). When `confirmed=false`, tool blocks mutation and returns preview metadata (Product Name, SKU, Current Stock, Projected New Stock, Audit Reason) requiring explicit Admin approval before execution.
+    - `SearchAdminInternalSOPTool`: Executes vector RAG queries restricted strictly to `doc_type="SOP_ADMIN"`.
+  - **JWT Authorization**: Guarded `POST /api/v1/chat/admin` with `verify_admin_jwt` (enforcing `role == 'ADMIN'`).
+- `[Frontend]` Implemented Stock Adjustment Confirmation Guardrail (`StockAdjustmentModal.tsx`):
+  - Added 2-step verification guardrail displaying projected warehouse stock changes (Current Stock $\rightarrow$ Projected New Stock), operation type, and audit reasons with warning banners before submitting mutations.
+  - Fully localized in Indonesian & English via `react-i18next` under `"admin"`.
+- `[Frontend]` Implemented Admin AI Copilot UI & Rich Markdown Formatting (`AdminAIChatDrawer.tsx`):
+  - Added `AdminFormattedMessage` component supporting `**bold text**`, `*italic*`, `` `inline code / SKU` ``, bullet lists (`- `, `* `), numbered lists (`1. `), and header formatting (`### `), fixing unparsed markdown asterisks.
+  - Created interactive sliding drawer for Admin Control Panel (`/admin`) with one-click quick action chips (Revenue KPIs, Low Stock Warnings, Warehouse Picking SOP, Recent Orders).
+  - Added "⚡ Admin AI Copilot" button in Admin Navigation Tabs and floating action button on bottom-right of Admin Dashboard.
+  - Fully localized in Indonesian & English via `react-i18next` under `"admin_copilot"`.
 - `[AI Service]` Implemented 2-Tier Redis Semantic RAG Cache in `KnowledgeUseCase`:
   - **Tier 1 (Exact Hash Match)**: Stores hash keys (`rag:exact:{scope}:{hash}`) in Redis with 24h TTL for $< 1\text{ms}$ instantaneous responses.
   - **Tier 2 (Semantic Vector Similarity Match)**: Stores query embeddings in Redis List (`rag:semantic:{scope}`) and evaluates cosine similarity against active clusters in in-memory RAM. When $\ge 92\%$ similarity is reached, returns cached excerpts in $\approx 5\text{ms}$ without invoking PostgreSQL.
