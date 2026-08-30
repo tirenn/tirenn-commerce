@@ -66,6 +66,12 @@ class Settings(BaseSettings):
     SESSION_MAX_STORED: int = 50     # Max messages retained in Redis List (via LTRIM)
     SESSION_TTL_SECONDS: int = 86400 # 24-hour expiration for inactive chat sessions
 
+    # Redis RAG Semantic Cache Settings
+    RAG_CACHE_ENABLED: bool = True
+    RAG_CACHE_SEMANTIC_THRESHOLD: float = 0.92  # 92% similarity threshold for semantic cache hit
+    RAG_CACHE_TTL_SECONDS: int = 86400          # 24-hour expiration for cached RAG responses
+    RAG_CACHE_MAX_ENTRIES: int = 100            # Max semantic vector entries stored per document scope
+
     # Internal Machine-to-Machine Secret Key
     INTERNAL_API_KEY: str = "very-very-secret-internal-key-2026"
 

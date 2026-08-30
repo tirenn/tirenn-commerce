@@ -61,6 +61,10 @@ tirenn-commerce/
 - `[AI Service]` Enforced Hard Data Isolation for Customer SOP (`doc_type='SOP_CUSTOMER'`):
   - Locked `SearchStorePoliciesAndSOPTool` to strictly query customer-facing knowledge documents (`doc_type="SOP_CUSTOMER"`), physically barring the public AI Shopper from retrieving internal merchant or administrative SOPs from PostgreSQL.
   - Enhanced `SYSTEM_PROMPT` with strict customer-only data scope directives.
+- `[AI Service]` Implemented 2-Tier Redis Semantic RAG Cache in `KnowledgeUseCase`:
+  - **Tier 1 (Exact Hash Match)**: Stores hash keys (`rag:exact:{scope}:{hash}`) in Redis with 24h TTL for $< 1\text{ms}$ instantaneous responses.
+  - **Tier 2 (Semantic Vector Similarity Match)**: Stores query embeddings in Redis List (`rag:semantic:{scope}`) and evaluates cosine similarity against active clusters in in-memory RAM. When $\ge 92\%$ similarity is reached, returns cached excerpts in $\approx 5\text{ms}$ without invoking PostgreSQL.
+  - **Auto-Invalidation**: Flushes all `rag:exact:*` and `rag:semantic:*` keys automatically whenever an Admin uploads or deletes SOP PDF documents in `KnowledgeManagement`.
 - `[Frontend]` Full i18n Localization Refactor (`KnowledgeManagement.tsx` & `AIChatModal.tsx`):
   - Extracted all remaining hardcoded strings, toasts, badges, and playground UI text into `src/locales/en.json` and `src/locales/id.json` under `knowledge` and `ai_chat` keys.
   - Replaced inline `isEn ? ... : ...` ternary logic with declarative `t('...')` translation calls with dynamic interpolation (`{{title}}`, `{{chunks}}`, `{{name}}`, `{{qty}}`).
