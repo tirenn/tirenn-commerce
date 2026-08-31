@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"strings"
 
-	"gorm.io/gorm"
+	"tirenn-ai-commerce/internal/domain/product"
 )
 
-// AddToCartTool validates product and formats cart action for UI
+// AddToCartTool validates product and formats cart action for UI via product.Repository
 type AddToCartTool struct {
-	db *gorm.DB
+	repo product.Repository
 }
 
-func NewAddToCartTool(db *gorm.DB) *AddToCartTool {
-	return &AddToCartTool{db: db}
+func NewAddToCartTool(repo product.Repository) *AddToCartTool {
+	return &AddToCartTool{repo: repo}
 }
 
 func (t *AddToCartTool) Name() string {
@@ -31,17 +31,22 @@ func (t *AddToCartTool) ParametersSchema() map[string]interface{} {
 		"properties": map[string]interface{}{
 			"sku": map[string]interface{}{
 				"type":        "string",
-				"description": "Product SKU code.",
+				"description": "Product SKU to add to cart (e.g. 'ID-AUD-001', 'ID-WCL-001', 'EN-AUD-003').",
 			},
-			"product_id": map[string]interface{}{
-				"type":        "integer",
-				"description": "Product numeric ID.",
-			},
-			"quantity": map[string]interface{}{
+			"qty": map[string]interface{}{
 				"type":        "integer",
 				"description": "Quantity to add to cart (default: 1).",
 			},
+			"quantity": map[string]interface{}{
+				"type":        "integer",
+				"description": "Alternative parameter for quantity (default: 1).",
+			},
+			"product_id": map[string]interface{}{
+				"type":        "integer",
+				"description": "Product numeric ID (optional if SKU is provided).",
+			},
 		},
+		"required": []string{"sku"},
 	}
 }
 
@@ -49,34 +54,64 @@ func (t *AddToCartTool) Execute(ctx context.Context, args map[string]interface{}
 	sku, _ := args["sku"].(string)
 	sku = strings.TrimSpace(sku)
 	qty := 1
-	if q, ok := args["quantity"].(float64); ok && q > 0 {
+	if q, ok := args["qty"].(float64); ok && q > 0 {
+		qty = int(q)
+	} else if q, ok := args["qty"].(int); ok && q > 0 {
+		qty = q
+	} else if q, ok := args["quantity"].(float64); ok && q > 0 {
 		qty = int(q)
 	} else if q, ok := args["quantity"].(int); ok && q > 0 {
 		qty = q
 	}
 
-	var prod CartProductInfo
-	query := t.db.WithContext(ctx).Table("products").Select("id, name, sku, price, currency, stock_quantity, image_url").Where("is_active = true")
-	if sku != "" {
-		query = query.Where("sku = ?", sku)
-	} else if pID, ok := args["product_id"].(float64); ok && pID > 0 {
-		query = query.Where("id = ?", int64(pID))
+	productID := uint(0)
+	if pID, ok := args["product_id"].(float64); ok && pID > 0 {
+		productID = uint(pID)
 	} else if pID, ok := args["product_id"].(int); ok && pID > 0 {
-		query = query.Where("id = ?", int64(pID))
+		productID = uint(pID)
+	}
+
+	if sku == "" && productID == 0 {
+		return map[string]interface{}{"action": "need_clarification", "status": "error", "message": "Product SKU is required."}, nil
+	}
+
+	var prod *product.Product
+	var err error
+
+	if sku != "" {
+		prod, err = t.repo.FindBySKU(ctx, sku)
 	} else {
-		return map[string]interface{}{"status": "error", "message": "SKU or product_id required."}, nil
+		prod, err = t.repo.FindByID(ctx, productID)
 	}
 
-	if err := query.First(&prod).Error; err != nil {
-		return map[string]interface{}{"status": "not_found", "message": "Product not found."}, nil
+	if err != nil || prod == nil || !prod.IsActive {
+		return map[string]interface{}{"action": "not_found", "status": "not_found", "sku": sku, "message": fmt.Sprintf("Product with SKU '%s' not found.", sku)}, nil
 	}
 
-	if prod.StockQuantity < qty {
+	if prod.StockQuantity <= 0 {
 		return map[string]interface{}{
+			"action":         "out_of_stock",
 			"status":         "out_of_stock",
-			"message":        fmt.Sprintf("Insufficient stock for %s. Available: %d", prod.Name, prod.StockQuantity),
-			"available_qty": prod.StockQuantity,
+			"id":             prod.ID,
+			"sku":            prod.SKU,
+			"name":           prod.Name,
+			"stock_quantity": 0,
+			"message":        fmt.Sprintf("Sorry, %s is currently out of stock.", prod.Name),
 		}, nil
+	}
+
+	actualQty := qty
+	if actualQty > prod.StockQuantity {
+		actualQty = prod.StockQuantity
+	}
+
+	curr := prod.Currency
+	if curr == "" {
+		if strings.HasPrefix(prod.SKU, "EN-") {
+			curr = "USD"
+		} else {
+			curr = "IDR"
+		}
 	}
 
 	prodMap := map[string]interface{}{
@@ -84,28 +119,62 @@ func (t *AddToCartTool) Execute(ctx context.Context, args map[string]interface{}
 		"name":           prod.Name,
 		"sku":            prod.SKU,
 		"price":          prod.Price,
-		"currency":       prod.Currency,
+		"currency":       curr,
 		"image_url":      prod.ImageURL,
 		"stock_quantity": prod.StockQuantity,
+		"quantity":       actualQty,
+	}
+
+	catName := prod.Category.Name
+	subCatName := ""
+	if prod.SubCategory != nil {
+		subCatName = prod.SubCategory.Name
+	}
+
+	fullProdMap := map[string]interface{}{
+		"id":             prod.ID,
+		"name":           prod.Name,
+		"sku":            prod.SKU,
+		"price":          prod.Price,
+		"currency":       curr,
+		"image_url":      prod.ImageURL,
+		"stock_quantity": prod.StockQuantity,
+		"category":       catName,
+		"sub_category":   subCatName,
+		"rating":         prod.Rating,
+		"in_stock":       true,
 	}
 
 	cartAction := map[string]interface{}{
-		"type":         "ADD_TO_CART",
-		"product_id":   prod.ID,
-		"product_name": prod.Name,
-		"sku":          prod.SKU,
-		"price":        prod.Price,
-		"currency":     prod.Currency,
-		"quantity":     qty,
-		"image_url":    prod.ImageURL,
-		"product":      prodMap,
+		"action":         "cart_added",
+		"type":           "ADD_TO_CART",
+		"id":             prod.ID,
+		"product_id":     prod.ID,
+		"product_name":   prod.Name,
+		"name":           prod.Name,
+		"sku":            prod.SKU,
+		"price":          prod.Price,
+		"currency":       curr,
+		"quantity":       actualQty,
+		"stock_quantity": prod.StockQuantity,
+		"image_url":      prod.ImageURL,
+		"product":        prodMap,
 	}
 
 	return map[string]interface{}{
-		"status":        "success",
-		"message":       fmt.Sprintf("Added %d unit(s) of %s to shopping cart.", qty, prod.Name),
-		"cart_action":   cartAction,
-		"_full_product": prodMap,
+		"action":         "cart_added",
+		"status":         "success",
+		"id":             prod.ID,
+		"name":           prod.Name,
+		"sku":            prod.SKU,
+		"price":          prod.Price,
+		"currency":       curr,
+		"quantity":       actualQty,
+		"stock_quantity": prod.StockQuantity,
+		"product":        prodMap,
+		"cart_action":    cartAction,
+		"_full_product":  fullProdMap,
+		"message":        fmt.Sprintf("Added %d unit(s) of %s (%s) to shopping cart.", actualQty, prod.Name, prod.SKU),
 	}, nil
 }
 

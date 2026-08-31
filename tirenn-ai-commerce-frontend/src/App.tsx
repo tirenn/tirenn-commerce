@@ -59,13 +59,12 @@ export const App: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
 
-  // Filters, Search & AI Semantic Search
+  // Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState(0);
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState(0);
   const [selectedSort, setSelectedSort] = useState('newest');
   const [onlyInStock, setOnlyInStock] = useState(false);
-  const [isSemantic, setIsSemantic] = useState(false);
 
   // Modals
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -106,8 +105,10 @@ export const App: React.FC = () => {
 
       try {
         const params = new URLSearchParams();
-        if (searchTerm) params.append('search', searchTerm);
-        if (isSemantic) params.append('semantic', 'true');
+        const cleanSearch = searchTerm.trim();
+        if (cleanSearch.length >= 3) {
+          params.append('search', cleanSearch);
+        }
         if (selectedCategoryId > 0) params.append('category_id', selectedCategoryId.toString());
         if (selectedSubCategoryId > 0) params.append('sub_category_id', selectedSubCategoryId.toString());
         if (selectedSort) params.append('sort', selectedSort);
@@ -144,7 +145,7 @@ export const App: React.FC = () => {
         isFetchingRef.current = false;
       }
     },
-    [searchTerm, isSemantic, selectedCategoryId, selectedSubCategoryId, selectedSort, onlyInStock]
+    [searchTerm, selectedCategoryId, selectedSubCategoryId, selectedSort, onlyInStock]
   );
 
   const loadNextPage = useCallback(() => {
@@ -212,7 +213,6 @@ export const App: React.FC = () => {
     setSelectedSubCategoryId(0);
     setSelectedSort('newest');
     setOnlyInStock(false);
-    setIsSemantic(false);
     setCurrentPage(1);
   };
 
@@ -261,13 +261,11 @@ export const App: React.FC = () => {
                 selectedSubCategoryId={selectedSubCategoryId}
                 selectedSort={selectedSort}
                 onlyInStock={onlyInStock}
-                isSemantic={isSemantic}
                 totalProductsCount={totalProducts}
                 onSelectCategory={setSelectedCategoryId}
                 onSelectSubCategory={setSelectedSubCategoryId}
                 onSelectSort={setSelectedSort}
                 onToggleInStock={setOnlyInStock}
-                onToggleSemantic={setIsSemantic}
                 onResetFilters={handleResetFilters}
               />
 

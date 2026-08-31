@@ -39,7 +39,7 @@ func main() {
 
 	// 4. Dependency Injection: Repositories & External Adapters
 	authRepo := auth.NewRepository(db)
-	productRepo := product.NewRepository(db)
+	productRepo := product.NewRepository(db, cfg)
 	orderRepo := order.NewRepository(db)
 	customerRepo := customer.NewRepository(db)
 	dashboardRepo := dashboard.NewRepository(db)
@@ -58,8 +58,8 @@ func main() {
 	orderUseCase := order.NewUseCase(orderRepo)
 	customerUseCase := customer.NewUseCase(customerRepo)
 	dashboardUseCase := dashboard.NewUseCase(dashboardRepo)
-	shopperAIUseCase := ai.NewShopperUseCase(ollamaClient, sessionRepo, knowledgeRepo, ragCacheRepo, db, cfg)
-	adminAIUseCase := ai.NewAdminUseCase(ollamaClient, sessionRepo, knowledgeRepo, ragCacheRepo, db, cfg)
+	shopperAIUseCase := ai.NewShopperUseCase(ollamaClient, sessionRepo, knowledgeRepo, ragCacheRepo, productRepo, cfg)
+	adminAIUseCase := ai.NewAdminUseCase(ollamaClient, sessionRepo, knowledgeRepo, ragCacheRepo, productRepo, dashboardRepo, cfg)
 	knowledgeUseCase := ai.NewKnowledgeUseCase(knowledgeRepo, ragCacheRepo, ollamaClient)
 
 	// 6. Dependency Injection: Handlers
@@ -69,7 +69,7 @@ func main() {
 		Order:     order.NewHandler(orderUseCase),
 		Customer:  customer.NewHandler(customerUseCase),
 		Dashboard: dashboard.NewHandler(dashboardUseCase),
-		AI:        ai.NewHandler(shopperAIUseCase, adminAIUseCase, knowledgeUseCase, sessionRepo, ollamaClient, db, cfg),
+		AI:        ai.NewHandler(shopperAIUseCase, adminAIUseCase, knowledgeUseCase, sessionRepo, productRepo, ollamaClient, cfg),
 	}
 
 	// 7. Setup Router from dedicated router package

@@ -56,16 +56,16 @@ type CreateSubCategoryRequest struct {
 
 // ProductFilterQuery defines query parameters for listing and filtering products
 type ProductFilterQuery struct {
-	Search        string  `form:"search"`
-	Semantic      bool    `form:"semantic"`
-	CategoryID    uint    `form:"category_id"`
-	SubCategoryID uint    `form:"sub_category_id"`
-	MinPrice      float64 `form:"min_price"`
-	MaxPrice      float64 `form:"max_price"`
-	Currency      string  `form:"currency"`
-	InStock       *bool   `form:"in_stock"`
-	Sort          string  `form:"sort"` // "price_asc", "price_desc", "newest", "name_asc"
-	Page          int     `form:"page,default=1"`
-	Limit         int     `form:"limit,default=12"`
-	IsAdmin       bool    `form:"-"`
+	Search        string    `form:"search"`
+	CategoryID    uint      `form:"category_id"`
+	SubCategoryID uint      `form:"sub_category_id"`
+	MinPrice      float64   `form:"min_price"`
+	MaxPrice      float64   `form:"max_price"`
+	Currency      string    `form:"currency"`
+	InStock       *bool     `form:"in_stock"`
+	Sort          string    `form:"sort"` // "price_asc", "price_desc", "newest", "name_asc"
+	Page          int       `form:"page,default=1"`
+	Limit         int       `form:"limit,default=12"`
+	IsAdmin       bool      `form:"-"`
+	Embedding     []float32 `form:"-"`
 }

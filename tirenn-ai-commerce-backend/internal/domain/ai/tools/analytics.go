@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"log"
 
-	"gorm.io/gorm"
+	"tirenn-ai-commerce/internal/domain/dashboard"
 )
 
-// GetExecutiveDashboardMetricsTool queries high-level merchant analytics directly from database
+// GetExecutiveDashboardMetricsTool queries high-level merchant analytics via dashboard.Repository
 type GetExecutiveDashboardMetricsTool struct {
-	db *gorm.DB
+	repo dashboard.Repository
 }
 
-func NewGetExecutiveDashboardMetricsTool(db *gorm.DB) *GetExecutiveDashboardMetricsTool {
-	return &GetExecutiveDashboardMetricsTool{db: db}
+func NewGetExecutiveDashboardMetricsTool(repo dashboard.Repository) *GetExecutiveDashboardMetricsTool {
+	return &GetExecutiveDashboardMetricsTool{repo: repo}
 }
 
 func (t *GetExecutiveDashboardMetricsTool) Name() string {
@@ -38,53 +38,35 @@ func (t *GetExecutiveDashboardMetricsTool) ParametersSchema() map[string]interfa
 }
 
 func (t *GetExecutiveDashboardMetricsTool) Execute(ctx context.Context, args map[string]interface{}, contextMap map[string]interface{}) (map[string]interface{}, error) {
-	log.Printf("📊 [ADMIN TOOL: get_executive_dashboard_metrics] executing direct SQL aggregation")
+	log.Printf("📊 [ADMIN TOOL: get_executive_dashboard_metrics] executing dashboard repository queries")
 
-	var totalRevenue float64
-	var totalOrders int64
-	var totalCustomers int64
-	var lowStockCount int64
+	summary, err := t.repo.GetSummary(ctx)
+	if err != nil {
+		return map[string]interface{}{"status": "error", "message": err.Error()}, nil
+	}
 
-	t.db.WithContext(ctx).Table("orders").Where("status != 'CANCELLED'").Select("COALESCE(SUM(total_amount), 0)").Row().Scan(&totalRevenue)
-	t.db.WithContext(ctx).Table("orders").Count(&totalOrders)
-	t.db.WithContext(ctx).Table("users").Where("role = 'CUSTOMER'").Count(&totalCustomers)
-	t.db.WithContext(ctx).Table("products").Where("is_active = true AND stock_quantity <= low_stock_threshold").Count(&lowStockCount)
-
-	var topProducts []AnalyticsTopProduct
-	t.db.WithContext(ctx).Raw(`
-		SELECT 
-			p.id, p.name, p.sku, 
-			COALESCE(SUM(oi.quantity), 0) as total_sold,
-			COALESCE(SUM(oi.subtotal), 0) as total_sales
-		FROM products p
-		INNER JOIN order_items oi ON oi.product_id = p.id
-		INNER JOIN orders o ON oi.order_id = o.id
-		WHERE o.status != 'CANCELLED'
-		GROUP BY p.id, p.name, p.sku
-		ORDER BY total_sold DESC
-		LIMIT 5
-	`).Scan(&topProducts)
+	topProducts, _ := t.repo.GetTopSellingProducts(ctx, 5)
 
 	return map[string]interface{}{
 		"status": "success",
 		"metrics": map[string]interface{}{
-			"gross_revenue":        totalRevenue,
-			"gross_revenue_format": fmt.Sprintf("Rp %.2f", totalRevenue),
-			"total_orders":         totalOrders,
-			"total_customers":      totalCustomers,
-			"low_stock_alerts":     lowStockCount,
+			"gross_revenue":        summary.TotalRevenue,
+			"gross_revenue_format": fmt.Sprintf("Rp %.2f", summary.TotalRevenue),
+			"total_orders":         summary.TotalOrders,
+			"total_customers":      summary.TotalCustomers,
+			"low_stock_alerts":     summary.LowStockCount,
 			"top_selling_products": topProducts,
 		},
 	}, nil
 }
 
-// GetRecentOrdersOverviewTool lists recent customer orders
+// GetRecentOrdersOverviewTool lists recent customer orders via dashboard.Repository
 type GetRecentOrdersOverviewTool struct {
-	db *gorm.DB
+	repo dashboard.Repository
 }
 
-func NewGetRecentOrdersOverviewTool(db *gorm.DB) *GetRecentOrdersOverviewTool {
-	return &GetRecentOrdersOverviewTool{db: db}
+func NewGetRecentOrdersOverviewTool(repo dashboard.Repository) *GetRecentOrdersOverviewTool {
+	return &GetRecentOrdersOverviewTool{repo: repo}
 }
 
 func (t *GetRecentOrdersOverviewTool) Name() string {
@@ -119,20 +101,8 @@ func (t *GetRecentOrdersOverviewTool) Execute(ctx context.Context, args map[stri
 		limit = l
 	}
 
-	status, _ := args["status"].(string)
-
-	var orders []AnalyticsOrderRow
-	query := t.db.WithContext(ctx).Table("orders o").
-		Select("o.id, o.order_number, u.name as customer_name, u.email as customer_email, o.total_amount, o.status, (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as item_count, o.created_at").
-		Joins("LEFT JOIN users u ON u.id = o.user_id").
-		Order("o.id DESC").
-		Limit(limit)
-
-	if status != "" {
-		query = query.Where("o.status = ?", status)
-	}
-
-	if err := query.Scan(&orders).Error; err != nil {
+	orders, err := t.repo.GetRecentOrders(ctx, limit)
+	if err != nil {
 		return map[string]interface{}{"status": "error", "message": err.Error()}, nil
 	}
 

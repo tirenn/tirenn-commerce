@@ -125,17 +125,17 @@ func LoadConfig(paths ...string) *Config {
 	v.SetDefault("AI_SERVICE_URL", "http://localhost:8000")
 	v.SetDefault("OLLAMA_BASE_URL", "http://ollama:11434")
 	v.SetDefault("OLLAMA_CHAT_MODEL", "qwen2.5:3b")
-	v.SetDefault("OLLAMA_EMBED_MODEL", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+	v.SetDefault("OLLAMA_EMBED_MODEL", "paraphrase-multilingual")
 
 	// AI LLM & Hybrid Search Defaults
 	v.SetDefault("LLM_TOOL_TEMPERATURE", 0.0)
 	v.SetDefault("LLM_CHAT_TEMPERATURE", 0.3)
-	v.SetDefault("DEFAULT_SEARCH_SCORE_THRESHOLD", 0.25)
-	v.SetDefault("CHAT_SEARCH_SCORE_THRESHOLD", 0.20)
-	v.SetDefault("CHAT_SEARCH_FALLBACK_THRESHOLD", 0.10)
+	v.SetDefault("DEFAULT_SEARCH_SCORE_THRESHOLD", 0.45)
+	v.SetDefault("CHAT_SEARCH_SCORE_THRESHOLD", 0.40)
+	v.SetDefault("CHAT_SEARCH_FALLBACK_THRESHOLD", 0.25)
 	v.SetDefault("ENABLE_HYBRID_SEARCH", true)
-	v.SetDefault("HYBRID_VECTOR_WEIGHT", 0.70)
-	v.SetDefault("HYBRID_TEXT_WEIGHT", 0.30)
+	v.SetDefault("HYBRID_VECTOR_WEIGHT", 0.40)
+	v.SetDefault("HYBRID_TEXT_WEIGHT", 0.60)
 	v.SetDefault("SEARCH_LIMIT", 12)
 	v.SetDefault("CHAT_SEARCH_LIMIT", 6)
 

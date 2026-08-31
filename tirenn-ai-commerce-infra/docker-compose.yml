@@ -52,10 +52,47 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      # Limit to 1 parallel request to prevent RAM overflow on small VPS
+      - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-1}
+      # Only keep 1 model loaded in memory at a time
+      - OLLAMA_MAX_LOADED_MODELS=${OLLAMA_MAX_LOADED_MODELS:-1}
+      # Keep model in memory (don't unload between requests)
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-30m}
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama_models:/root/.ollama
+    networks:
+      - tirenn-net
+
+  # 3.1. Ollama Automatic Model Provisioner (Pulls models on first boot / deployment)
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: tirenn-ollama-init
+    restart: "no"
+    env_file:
+      - .env
+    depends_on:
+      - ollama
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        echo "⏳ Waiting for Ollama service to become healthy..."
+        until curl -s http://ollama:11434/api/tags > /dev/null 2>&1; do
+          sleep 2
+        done
+        echo "🚀 Ollama is ready. Checking & pulling required AI models..."
+        CHAT_MODEL=$${OLLAMA_CHAT_MODEL:-qwen2.5:3b}
+        EMBED_MODEL=$${OLLAMA_EMBED_MODEL:-bge-m3}
+        echo "📥 Ensuring Chat LLM is ready: $$CHAT_MODEL"
+        curl -s -X POST http://ollama:11434/api/pull -d "{\"name\": \"$$CHAT_MODEL\"}"
+        echo ""
+        echo "📥 Ensuring Embedding Model is ready: $$EMBED_MODEL"
+        curl -s -X POST http://ollama:11434/api/pull -d "{\"name\": \"$$EMBED_MODEL\"}"
+        echo ""
+        echo "✅ All required Ollama models are verified and ready!"
     networks:
       - tirenn-net
 

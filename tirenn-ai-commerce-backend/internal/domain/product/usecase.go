@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pgvector/pgvector-go"
@@ -102,8 +103,7 @@ func (u *useCase) CreateProduct(ctx context.Context, req *CreateProductRequest) 
 	if u.ollamaClient != nil {
 		textToEmbed := fmt.Sprintf("%s. %s", product.Name, product.Description)
 		if vec, err := u.ollamaClient.GenerateEmbedding(ctx, textToEmbed); err == nil && len(vec) > 0 {
-			pgVec := pgvector.NewVector(vec)
-			product.Embedding = &pgVec
+			product.Embedding = pgvector.NewVector(vec)
 		} else if err != nil {
 			logger.Warn(ctx, "usecase.product", "failed to generate product embedding", err)
 		}
@@ -203,8 +203,7 @@ func (u *useCase) UpdateProduct(ctx context.Context, id uint, req *UpdateProduct
 	if nameOrDescChanged && u.ollamaClient != nil {
 		textToEmbed := fmt.Sprintf("%s. %s", p.Name, p.Description)
 		if vec, err := u.ollamaClient.GenerateEmbedding(ctx, textToEmbed); err == nil && len(vec) > 0 {
-			pgVec := pgvector.NewVector(vec)
-			p.Embedding = &pgVec
+			p.Embedding = pgvector.NewVector(vec)
 		}
 	}
 
@@ -241,7 +240,20 @@ func (u *useCase) DeleteProduct(ctx context.Context, id uint) error {
 }
 
 func (u *useCase) ListProducts(ctx context.Context, filter ProductFilterQuery) (products []Product, total int64, err error) {
-	defer logger.Track(ctx, "usecase.product", "ListProducts")(&err, map[string]interface{}{"search": filter.Search, "category_id": filter.CategoryID, "semantic": filter.Semantic})
+	defer logger.Track(ctx, "usecase.product", "ListProducts")(&err, map[string]interface{}{"search": filter.Search, "category_id": filter.CategoryID})
+
+	cleanSearch := strings.TrimSpace(filter.Search)
+	// Enforce minimum 3 characters for product search and calculate Hybrid embedding vector
+	if len(cleanSearch) >= 3 && u.ollamaClient != nil {
+		if vec, embErr := u.ollamaClient.GenerateEmbedding(ctx, cleanSearch); embErr == nil && len(vec) > 0 {
+			filter.Embedding = vec
+		} else if embErr != nil {
+			logger.Warn(ctx, "usecase.product", "failed generating search query embedding, falling back to trigram/keyword", embErr)
+		}
+	} else if len(cleanSearch) < 3 {
+		filter.Search = "" // Ignore searches under 3 characters to protect DB load
+	}
+
 	return u.repo.List(ctx, filter)
 }
 

@@ -33,6 +33,7 @@ func (h *Handler) RegisterRoutes(rg *gin.RouterGroup, authMiddleware gin.Handler
 	if adminGroup != nil {
 		adminGroup.GET("/orders", h.AdminListOrders)
 		adminGroup.PUT("/orders/:id/status", h.AdminUpdateOrderStatus)
+		adminGroup.PATCH("/orders/:id/status", h.AdminUpdateOrderStatus)
 	}
 }
 

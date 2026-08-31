@@ -7,17 +7,16 @@ import (
 	"math"
 	"strings"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+	"tirenn-ai-commerce/internal/domain/product"
 )
 
-// GetLowStockProductsTool retrieves products with inventory at or below threshold
+// GetLowStockProductsTool retrieves products with inventory at or below threshold via product.Repository
 type GetLowStockProductsTool struct {
-	db *gorm.DB
+	repo product.Repository
 }
 
-func NewGetLowStockProductsTool(db *gorm.DB) *GetLowStockProductsTool {
-	return &GetLowStockProductsTool{db: db}
+func NewGetLowStockProductsTool(repo product.Repository) *GetLowStockProductsTool {
+	return &GetLowStockProductsTool{repo: repo}
 }
 
 func (t *GetLowStockProductsTool) Name() string {
@@ -59,17 +58,21 @@ func (t *GetLowStockProductsTool) Execute(ctx context.Context, args map[string]i
 		limit = l
 	}
 
-	var prods []InventoryLowStockProduct
-	err := t.db.WithContext(ctx).Table("products p").
-		Select("p.id, p.name, p.sku, p.stock_quantity, p.price, c.name as category_name").
-		Joins("LEFT JOIN categories c ON c.id = p.category_id").
-		Where("p.is_active = true AND p.stock_quantity <= ?", threshold).
-		Order("p.stock_quantity ASC").
-		Limit(limit).
-		Scan(&prods).Error
-
+	rawProds, err := t.repo.GetLowStock(ctx, limit)
 	if err != nil {
 		return map[string]interface{}{"status": "error", "message": err.Error()}, nil
+	}
+
+	prods := make([]InventoryLowStockProduct, 0, len(rawProds))
+	for _, p := range rawProds {
+		prods = append(prods, InventoryLowStockProduct{
+			ID:            int64(p.ID),
+			Name:          p.Name,
+			SKU:           p.SKU,
+			StockQuantity: p.StockQuantity,
+			Price:         p.Price,
+			CategoryName:  p.Category.Name,
+		})
 	}
 
 	return map[string]interface{}{
@@ -80,13 +83,13 @@ func (t *GetLowStockProductsTool) Execute(ctx context.Context, args map[string]i
 	}, nil
 }
 
-// AdjustProductStockTool performs warehouse stock adjustments with strict 2-step confirmation guardrail
+// AdjustProductStockTool performs warehouse stock adjustments with strict 2-step confirmation guardrail via product.Repository
 type AdjustProductStockTool struct {
-	db *gorm.DB
+	repo product.Repository
 }
 
-func NewAdjustProductStockTool(db *gorm.DB) *AdjustProductStockTool {
-	return &AdjustProductStockTool{db: db}
+func NewAdjustProductStockTool(repo product.Repository) *AdjustProductStockTool {
+	return &AdjustProductStockTool{repo: repo}
 }
 
 func (t *AdjustProductStockTool) Name() string {
@@ -159,19 +162,27 @@ func (t *AdjustProductStockTool) Execute(ctx context.Context, args map[string]in
 
 	confirmed, _ := args["confirmed"].(bool)
 
-	var prod InventoryProductRecord
-	q := t.db.WithContext(ctx).Table("products").Select("id, name, sku, stock_quantity").Where("is_active = true")
-	if sku != "" {
-		q = q.Where("sku = ?", sku)
-	} else if pID, ok := args["product_id"].(float64); ok && pID > 0 {
-		q = q.Where("id = ?", int64(pID))
+	productID := uint(0)
+	if pID, ok := args["product_id"].(float64); ok && pID > 0 {
+		productID = uint(pID)
 	} else if pID, ok := args["product_id"].(int); ok && pID > 0 {
-		q = q.Where("id = ?", int64(pID))
-	} else {
+		productID = uint(pID)
+	}
+
+	if sku == "" && productID == 0 {
 		return map[string]interface{}{"status": "error", "message": "SKU or product_id required."}, nil
 	}
 
-	if err := q.First(&prod).Error; err != nil {
+	var prod *product.Product
+	var err error
+
+	if sku != "" {
+		prod, err = t.repo.FindBySKU(ctx, sku)
+	} else {
+		prod, err = t.repo.FindByID(ctx, productID)
+	}
+
+	if err != nil || prod == nil {
 		return map[string]interface{}{"status": "not_found", "message": "Product not found in catalog."}, nil
 	}
 
@@ -213,69 +224,32 @@ func (t *AdjustProductStockTool) Execute(ctx context.Context, args map[string]in
 		}, nil
 	}
 
-	// STEP 2: Execute Atomic PostgreSQL Transaction
-	adminID := int64(1)
+	// STEP 2: Execute Atomic Repository Transaction
+	adminID := uint(1)
 	if aID, ok := contextMap["admin_id"].(int64); ok && aID > 0 {
-		adminID = aID
+		adminID = uint(aID)
 	} else if aID, ok := contextMap["admin_id"].(float64); ok && aID > 0 {
-		adminID = int64(aID)
+		adminID = uint(aID)
+	} else if aID, ok := contextMap["admin_id"].(uint); ok && aID > 0 {
+		adminID = aID
 	}
 
-	var auditLogID int64
-	var finalNewStock int
+	stockLog := &product.StockAdjustmentLog{
+		ProductID:      prod.ID,
+		AdjustmentType: adjType,
+		Quantity:       qtyChange,
+		PreviousStock:  prod.StockQuantity,
+		NewStock:       projectedStock,
+		Reason:         reason,
+		AdjustedBy:     adminID,
+	}
 
-	err := t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var lockedProd InventoryProductRecord
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Table("products").
-			Where("id = ?", prod.ID).First(&lockedProd).Error; err != nil {
-			return err
-		}
-
-		prevStock := lockedProd.StockQuantity
-		newStock := prevStock
-		switch adjType {
-		case "ADD":
-			newStock = prevStock + rawAmount
-		case "SUBTRACT":
-			newStock = prevStock - rawAmount
-			if newStock < 0 {
-				return fmt.Errorf("insufficient stock: current %d, attempted reduction %d", prevStock, rawAmount)
-			}
-		case "SET":
-			newStock = rawAmount
-		}
-
-		// Update product stock
-		if err := tx.Table("products").Where("id = ?", prod.ID).Update("stock_quantity", newStock).Error; err != nil {
-			return err
-		}
-
-		// Insert stock adjustment audit log
-		auditLog := InventoryStockAdjustmentLog{
-			ProductID:      prod.ID,
-			AdjustmentType: adjType,
-			Quantity:       qtyChange,
-			PreviousStock:  prevStock,
-			NewStock:       newStock,
-			Reason:         reason,
-			AdjustedBy:     adminID,
-		}
-
-		if err := tx.Table("stock_adjustment_logs").Create(&auditLog).Error; err != nil {
-			return err
-		}
-
-		auditLogID = auditLog.ID
-		finalNewStock = newStock
-		return nil
-	})
-
-	if err != nil {
-		log.Printf("❌ [AdjustProductStockTool] Transaction failed: %v", err)
+	if err := t.repo.AdjustStock(ctx, stockLog); err != nil {
+		log.Printf("❌ [AdjustProductStockTool] Repository adjustment failed: %v", err)
 		return map[string]interface{}{"status": "error", "message": err.Error()}, nil
 	}
 
-	log.Printf("✅ [AdjustProductStockTool] Stock committed: %s (%s) %d -> %d (Audit Log #%d)", prod.Name, prod.SKU, prod.StockQuantity, finalNewStock, auditLogID)
+	log.Printf("✅ [AdjustProductStockTool] Stock committed: %s (%s) %d -> %d (Audit Log #%d)", prod.Name, prod.SKU, prod.StockQuantity, projectedStock, stockLog.ID)
 
 	return map[string]interface{}{
 		"status":          "success",
@@ -285,9 +259,10 @@ func (t *AdjustProductStockTool) Execute(ctx context.Context, args map[string]in
 		"adjustment_type": adjType,
 		"amount":          rawAmount,
 		"previous_stock":  prod.StockQuantity,
-		"new_stock":       finalNewStock,
-		"audit_log_id":    auditLogID,
+		"new_stock":       projectedStock,
+		"audit_log_id":    stockLog.ID,
 		"reason":          reason,
-		"message":         fmt.Sprintf("Stock successfully updated to %d units (Audit Log #%d).", finalNewStock, auditLogID),
+		"message":         fmt.Sprintf("Stock successfully updated to %d units (Audit Log #%d).", projectedStock, stockLog.ID),
 	}, nil
 }
+

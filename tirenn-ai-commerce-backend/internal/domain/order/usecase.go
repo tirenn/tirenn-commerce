@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"tirenn-ai-commerce/internal/domain"
@@ -138,9 +139,16 @@ func (u *useCase) AdminUpdateStatus(ctx context.Context, orderID uint, req *Upda
 		return nil, domain.ErrNotFound
 	}
 
-	if err := u.repo.UpdateStatus(ctx, orderID, req.Status, req.Notes); err != nil {
-		logger.Error(ctx, "usecase", fmt.Sprintf("failed to update status of order %d to %s", orderID, req.Status), err)
-		return nil, err
+	if strings.EqualFold(req.Status, string(StatusCancelled)) {
+		if err := u.repo.CancelOrderAndRestock(ctx, orderID, req.Notes); err != nil {
+			logger.Error(ctx, "usecase", fmt.Sprintf("failed to cancel and restock order %d", orderID), err)
+			return nil, err
+		}
+	} else {
+		if err := u.repo.UpdateStatus(ctx, orderID, req.Status, req.Notes); err != nil {
+			logger.Error(ctx, "usecase", fmt.Sprintf("failed to update status of order %d to %s", orderID, req.Status), err)
+			return nil, err
+		}
 	}
 
 	logger.Info(ctx, "usecase", fmt.Sprintf("order %s status updated from %s to %s", order.OrderNumber, order.Status, req.Status))

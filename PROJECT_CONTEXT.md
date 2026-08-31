@@ -38,8 +38,41 @@ tirenn-commerce/
 
 ## 📜 Activity Changelog & History
 
+### 📅 2026-08-31
+
+- `[Golang & Clean Architecture]` AI Tool Invocation Refactor to Domain Repositories:
+  - **Clean Architecture & Separation of Concerns**: Refactored all AI tools (`SearchProductsTool`, `GetProductDetailTool`, `CheckProductStockTool`, `AddToCartTool`, `GetExecutiveDashboardMetricsTool`, `GetRecentOrdersOverviewTool`, `GetLowStockProductsTool`, `AdjustProductStockTool`) to strictly inject and invoke Domain Repositories (`product.Repository`, `dashboard.Repository`, `order.Repository`) instead of issuing raw SQL or holding direct `*gorm.DB` references.
+  - **Dynamic Similarity Scoring**: Eliminated all hardcoded similarity/score values. `SearchProductsTool` now computes real-time mathematical Cosine Similarity using the 1024-dim `bge-m3` vectors combined with keyword matching weights ($0.70 \times \text{vector} + 0.30 \times \text{text}$).
+  - **Centralized Database Operations**: All atomic transactions (including warehouse stock adjustment logging in `stock_adjustment_logs`) and hybrid search queries now reside exclusively in repository implementations.
+  - **Constructor & DI Wiring**: Updated `ShopperUseCase`, `AdminUseCase`, `ai.Handler`, and `cmd/server/main.go` to wire repositories through Clean Architecture dependency injection.
+- `[Golang & Hybrid Search Tuning]` Environment-Driven Search Ratio & Threshold:
+  - **Environment-Driven Configuration**: Externalized hybrid search weights and thresholds into `.env` (`DEFAULT_SEARCH_SCORE_THRESHOLD=0.45`, `CHAT_SEARCH_SCORE_THRESHOLD=0.40`, `CHAT_SEARCH_FALLBACK_THRESHOLD=0.25`, `HYBRID_VECTOR_WEIGHT=0.40`, `HYBRID_TEXT_WEIGHT=0.60`).
+  - **Dynamic SQL Query Evaluation**: Updated `product.Repository.List` and `product.NewRepository(db, cfg)` to evaluate hybrid score ranking and cutoff thresholds dynamically from config without hardcoded values.
+  - **Relevance Precision**: Verified search results for queries like `"celana panjang"` and `"sepatu lari"` strictly return exact and relevant category matches, eliminating loose semantic false positives.
+- `[Frontend & Storefront Search]` Always Hybrid Storefront Search & Min 3-Char Policy:
+  - **Always Hybrid Search**: Transformed product search to be 100% Always Hybrid by default ($0.70 \times \text{vector} + 0.30 \times \text{text}$). Removed the manual `🧠 AI Semantic ON/OFF` toggle from [`FilterBar.tsx`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/tirenn-ai-commerce-frontend/src/components/FilterBar.tsx) and cleaned up redundant `semantic` query params across [`App.tsx`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/tirenn-ai-commerce-frontend/src/App.tsx) and [`product.dto.go`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/tirenn-ai-commerce-backend/internal/domain/product/dto.go).
+  - **Min-3 Char Guardrail**: Enforced minimum 3-character threshold in both React frontend (`App.tsx`) and Go backend (`product.UseCase.ListProducts` & `product.Repository.List`), preventing premature or resource-heavy searches on 1-2 character inputs.
+- `[Infra & Production Readiness]` Automated Ollama Model Provisioning Service (`ollama-init`):
+  - **Auto-Pull on Deploy**: Added `ollama-init` helper container in [`tirenn-ai-commerce-infra/docker-compose.yml`](file:///c:/Users/Ryzen/Documents/Projects/ai-commerce/tirenn-ai-commerce-infra/docker-compose.yml) (`curlimages/curl:latest`) with `restart: "no"`.
+  - **Zero-Manual-Intervention**: On `docker compose up -d`, it waits for Ollama to become healthy and automatically pulls `OLLAMA_CHAT_MODEL` (`qwen2.5:3b`) and `OLLAMA_EMBED_MODEL` (`bge-m3`) from environment variables in `.env`.
+- `[AI & Embedding Pipeline]` Upgraded Embedding Model to `bge-m3` (1024-dim dense vectors) via Ollama:
+  - **Ollama Model Integration**: Pulled `bge-m3:latest` into `tirenn-ollama` container (dim: 1024, context: 8192 tokens). Updated `.env` to `OLLAMA_EMBED_MODEL=bge-m3`.
+  - **Vector Dimension Migration**: Migrated database schema (`products` and `knowledge_chunks`) from `vector(768)` to `vector(1024)`.
+  - **Complete Re-Embedding**: Re-embedded 100% of 560 catalog products with 1024-dimensional multilingual embeddings in PostgreSQL pgvector.
+- `[Golang - RAG & UTF-8 Encoding Bug Fix]` Fixed PostgreSQL `invalid byte sequence for encoding "UTF8": 0x80` (`SQLSTATE 22021`):
+  - **UTF-8 Sanitizer**: Replaced flawed `charmap.Windows1252` decoder (which corrupted valid UTF-8 and generated illegal byte sequences) with `utf8.ValidString` and `strings.ToValidUTF8` stripping along with null-byte sanitization.
+  - **In-Memory PDF Parsing**: Integrated `github.com/ledongthuc/pdf` in Go backend `POST /api/v1/knowledge/upload-pdf` to parse multi-page PDFs in-memory without disk writes.
+  - **Full Endpoint Parity with AI Service**: Aligned `/api/v1/knowledge/upload-pdf`, `/api/v1/knowledge/query`, `/api/v1/knowledge/documents`, and `/api/v1/knowledge/documents/:id`. Verified RAG query similarity matching with score > 0.63 on policy search.
+
 ### 📅 2026-08-28
 
+- `[AI & Embedding Pipeline]` Pure Ollama `paraphrase-multilingual` (768-dim) Integration & Direct Pipeline:
+  - **Direct Ollama Embedding**: Pulled `paraphrase-multilingual:latest` into Ollama (`ba13c2e06707`). Go backend connects 100% directly to Ollama API.
+  - **Vector Dimension Upgrade**: Migrated database schema and structs from `vector(384)` to `vector(768)`.
+  - **Complete Catalog Embeddings**: 100% of all 560 catalog products populated with 768-dimensional multilingual dense embeddings in PostgreSQL pgvector.
+- `[QA & E2E Validation]` Complete Playwright & API Integration Test Suite Pass (24/24):
+  - **UI E2E**: 18/18 Playwright test scenarios passed across Storefront, PDP, Cart Drawer, AI Shopper, and Admin Panel.
+  - **API E2E**: 6/6 Go API test suites passed (Health, Auth/RBAC, Catalog, Product/Stock, Atomic Concurrency, Order Lifecycle & Restock).
 - `[Project Architecture & Standardization]` Unified Project Naming `tirenn-ai-commerce`:
   - **Go Module Rename (`go.mod`)**: Migrated module from `gocommerce-backend` to `module tirenn-ai-commerce`.
   - **Source Import Refactor**: Standardized all 37 Go packages to `tirenn-ai-commerce/internal/...`.

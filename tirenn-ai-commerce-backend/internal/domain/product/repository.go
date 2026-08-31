@@ -2,8 +2,12 @@ package product
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
+	"tirenn-ai-commerce/internal/config"
+
+	"github.com/pgvector/pgvector-go"
 	"gorm.io/gorm"
 )
 
@@ -11,12 +15,14 @@ type Repository interface {
 	// Product operations
 	Create(ctx context.Context, p *Product) error
 	FindByID(ctx context.Context, id uint) (*Product, error)
+	FindBySKU(ctx context.Context, sku string) (*Product, error)
 	FindByIDs(ctx context.Context, ids []uint) ([]Product, error)
 	FindBySlug(ctx context.Context, slug string) (*Product, error)
 	Update(ctx context.Context, p *Product) error
 	Delete(ctx context.Context, id uint) error
 	List(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error)
 	ListAll(ctx context.Context) ([]Product, error)
+	GetLowStock(ctx context.Context, limit int) ([]Product, error)
 
 	// Stock adjustment
 	AdjustStock(ctx context.Context, log *StockAdjustmentLog) error
@@ -41,11 +47,16 @@ type Repository interface {
 }
 
 type repository struct {
-	db *gorm.DB
+	db  *gorm.DB
+	cfg *config.Config
 }
 
-func NewRepository(db *gorm.DB) Repository {
-	return &repository{db: db}
+func NewRepository(db *gorm.DB, cfgs ...*config.Config) Repository {
+	var cfg *config.Config
+	if len(cfgs) > 0 {
+		cfg = cfgs[0]
+	}
+	return &repository{db: db, cfg: cfg}
 }
 
 func (r *repository) Create(ctx context.Context, p *Product) error {
@@ -55,6 +66,15 @@ func (r *repository) Create(ctx context.Context, p *Product) error {
 func (r *repository) FindByID(ctx context.Context, id uint) (*Product, error) {
 	var p Product
 	err := r.db.WithContext(ctx).Preload("Category").Preload("SubCategory").First(&p, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (r *repository) FindBySKU(ctx context.Context, sku string) (*Product, error) {
+	var p Product
+	err := r.db.WithContext(ctx).Preload("Category").Preload("SubCategory").Where("sku = ?", strings.TrimSpace(sku)).First(&p).Error
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +129,21 @@ func (r *repository) ListAll(ctx context.Context) ([]Product, error) {
 	return products, err
 }
 
+func (r *repository) GetLowStock(ctx context.Context, limit int) ([]Product, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	var products []Product
+	err := r.db.WithContext(ctx).
+		Preload("Category").
+		Preload("SubCategory").
+		Where("stock_quantity <= low_stock_threshold AND is_active = ?", true).
+		Order("stock_quantity ASC").
+		Limit(limit).
+		Find(&products).Error
+	return products, err
+}
+
 func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error) {
 	var products []Product
 	var total int64
@@ -123,16 +158,54 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 		query = query.Where("products.is_active = ?", true)
 	}
 
-	// PostgreSQL Case-Insensitive ILIKE Substring Search
-	if filter.Search != "" {
-		cleanSearch := strings.TrimSpace(filter.Search)
-		tokens := strings.Fields(cleanSearch)
-		for _, token := range tokens {
-			pattern := "%" + token + "%"
-			query = query.Where(
-				"(products.name ILIKE ? OR products.description ILIKE ? OR products.sku ILIKE ? OR categories.name ILIKE ? OR sub_categories.name ILIKE ?)",
-				pattern, pattern, pattern, pattern, pattern,
-			)
+	cleanSearch := strings.TrimSpace(filter.Search)
+	hasValidSearch := len(cleanSearch) >= 3
+
+	// Hybrid Dense Vector (bge-m3) + Trigram Substring Search
+	if hasValidSearch {
+		vw := 0.40
+		tw := 0.60
+		threshold := 0.45
+		if r.cfg != nil {
+			if r.cfg.HybridVectorWeight > 0 {
+				vw = r.cfg.HybridVectorWeight
+			}
+			if r.cfg.HybridTextWeight > 0 {
+				tw = r.cfg.HybridTextWeight
+			}
+			if r.cfg.DefaultSearchScoreThreshold > 0 {
+				threshold = r.cfg.DefaultSearchScoreThreshold
+			}
+		}
+
+		if len(filter.Embedding) > 0 {
+			vec := pgvector.NewVector(filter.Embedding)
+			kwPattern := "%" + strings.ToLower(cleanSearch) + "%"
+			// Match if vector similarity threshold passed OR keyword substring matches
+			whereSQL := fmt.Sprintf(`
+				(
+					products.embedding IS NOT NULL AND (
+						((1.0 - (products.embedding <=> ?)) * %.2f + 
+						(CASE 
+							WHEN LOWER(products.name) LIKE ? THEN 1.0 
+							WHEN LOWER(products.description) LIKE ? THEN 0.5 
+							ELSE 0.0 
+						END) * %.2f) >= %.2f
+					)
+				) OR (
+					products.name ILIKE ? OR products.description ILIKE ? OR products.sku ILIKE ? OR categories.name ILIKE ? OR sub_categories.name ILIKE ?
+				)
+			`, vw, tw, threshold)
+			query = query.Where(whereSQL, vec, kwPattern, kwPattern, kwPattern, kwPattern, kwPattern, kwPattern, kwPattern)
+		} else {
+			tokens := strings.Fields(cleanSearch)
+			for _, token := range tokens {
+				pattern := "%" + token + "%"
+				query = query.Where(
+					"(products.name ILIKE ? OR products.description ILIKE ? OR products.sku ILIKE ? OR categories.name ILIKE ? OR sub_categories.name ILIKE ?)",
+					pattern, pattern, pattern, pattern, pattern,
+				)
+			}
 		}
 	}
 
@@ -165,6 +238,17 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 		return nil, 0, err
 	}
 
+	vw := 0.40
+	tw := 0.60
+	if r.cfg != nil {
+		if r.cfg.HybridVectorWeight > 0 {
+			vw = r.cfg.HybridVectorWeight
+		}
+		if r.cfg.HybridTextWeight > 0 {
+			tw = r.cfg.HybridTextWeight
+		}
+	}
+
 	// Apply Sorting
 	switch filter.Sort {
 	case "price_asc":
@@ -174,9 +258,41 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 	case "name_asc":
 		query = query.Order("products.name ASC")
 	case "newest":
-		query = query.Order("products.id ASC")
+		if hasValidSearch && len(filter.Embedding) > 0 {
+			vec := pgvector.NewVector(filter.Embedding)
+			kwPattern := "%" + strings.ToLower(cleanSearch) + "%"
+			orderSQL := fmt.Sprintf(`
+				CASE WHEN products.embedding IS NOT NULL THEN
+					((1.0 - (products.embedding <=> ?)) * %.2f + 
+					(CASE 
+						WHEN LOWER(products.name) LIKE ? THEN 1.0 
+						WHEN LOWER(products.description) LIKE ? THEN 0.5 
+						ELSE 0.0 
+					END) * %.2f)
+				ELSE 0.0 END DESC, products.rating DESC, products.id ASC
+			`, vw, tw)
+			query = query.Order(gorm.Expr(orderSQL, vec, kwPattern, kwPattern))
+		} else {
+			query = query.Order("products.id DESC")
+		}
 	default:
-		query = query.Order("products.id ASC")
+		if hasValidSearch && len(filter.Embedding) > 0 {
+			vec := pgvector.NewVector(filter.Embedding)
+			kwPattern := "%" + strings.ToLower(cleanSearch) + "%"
+			orderSQL := fmt.Sprintf(`
+				CASE WHEN products.embedding IS NOT NULL THEN
+					((1.0 - (products.embedding <=> ?)) * %.2f + 
+					(CASE 
+						WHEN LOWER(products.name) LIKE ? THEN 1.0 
+						WHEN LOWER(products.description) LIKE ? THEN 0.5 
+						ELSE 0.0 
+					END) * %.2f)
+				ELSE 0.0 END DESC, products.rating DESC, products.id ASC
+			`, vw, tw)
+			query = query.Order(gorm.Expr(orderSQL, vec, kwPattern, kwPattern))
+		} else {
+			query = query.Order("products.id ASC")
+		}
 	}
 
 	// Pagination
@@ -294,7 +410,7 @@ func (r *repository) GetRecommendations(ctx context.Context, productID uint, lim
 
 	var products []Product
 
-	if target.Embedding != nil {
+	if len(target.Embedding.Slice()) > 0 {
 		// Vector similarity + category affinity soft-boost executed directly in PostgreSQL pgvector
 		err := r.db.WithContext(ctx).
 			Preload("Category").

@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
     chunk_index INT NOT NULL,
     content TEXT NOT NULL,
     page_number INT NOT NULL DEFAULT 1,
-    embedding vector(384),
+    embedding vector(1024),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

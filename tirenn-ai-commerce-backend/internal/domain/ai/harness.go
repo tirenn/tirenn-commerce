@@ -220,8 +220,12 @@ func (h *AgentHarness) Run(ctx context.Context, messages []ChatMessage, contextM
 			if prod, ok := toolResult["_full_product"].(map[string]interface{}); ok {
 				suggestedProducts = append(suggestedProducts, prod)
 			}
-			if ca, ok := toolResult["cart_action"].(map[string]interface{}); ok {
-				cartAction = ca
+			if toolName == "add_to_cart" || toolName == "view_cart" {
+				if ca, ok := toolResult["cart_action"].(map[string]interface{}); ok {
+					cartAction = ca
+				} else {
+					cartAction = toolResult
+				}
 			}
 
 			toolStatus := "success"
@@ -242,7 +246,32 @@ func (h *AgentHarness) Run(ctx context.Context, messages []ChatMessage, contextM
 				Result: toolResult,
 			})
 
-			resultJSON, _ := json.Marshal(toolResult)
+			toolResultForLLM := toolResult
+			if toolName == "search_products" {
+				if prods, ok := toolResult["products"].([]map[string]interface{}); ok {
+					pruned := make([]map[string]interface{}, 0, len(prods))
+					for i, p := range prods {
+						if i >= 6 {
+							break
+						}
+						pruned = append(pruned, map[string]interface{}{
+							"id":             p["id"],
+							"name":           p["name"],
+							"sku":            p["sku"],
+							"price":          p["price"],
+							"currency":       p["currency"],
+							"stock_quantity": p["stock_quantity"],
+						})
+					}
+					toolResultForLLM = map[string]interface{}{
+						"query":       toolResult["query"],
+						"found_count": len(pruned),
+						"products":    pruned,
+					}
+				}
+			}
+
+			resultJSON, _ := json.Marshal(toolResultForLLM)
 
 			formattedMessages = append(formattedMessages, ChatMessage{
 				Role:       "tool",
@@ -262,10 +291,24 @@ func (h *AgentHarness) Run(ctx context.Context, messages []ChatMessage, contextM
 		}
 	}
 
+	// Deduplicate suggested products by ID
+	uniqueProds := make([]map[string]interface{}, 0, len(suggestedProducts))
+	seenIDs := make(map[interface{}]bool)
+	for _, p := range suggestedProducts {
+		if id, exists := p["id"]; exists && !seenIDs[id] {
+			seenIDs[id] = true
+			uniqueProds = append(uniqueProds, p)
+		}
+	}
+
+	if len(uniqueProds) > 6 {
+		uniqueProds = uniqueProds[:6]
+	}
+
 	return &ChatShopperResult{
 		Reply:             lastContent,
 		ToolCalls:         executedToolsData,
-		SuggestedProducts: suggestedProducts,
+		SuggestedProducts: uniqueProds,
 		CartAction:        cartAction,
 		LatencyMs:         latency,
 	}, nil

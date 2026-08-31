@@ -8,13 +8,11 @@ interface FilterBarProps {
   selectedSubCategoryId: number;
   selectedSort: string;
   onlyInStock: boolean;
-  isSemantic: boolean;
   totalProductsCount: number;
   onSelectCategory: (id: number) => void;
   onSelectSubCategory: (id: number) => void;
   onSelectSort: (sort: string) => void;
   onToggleInStock: (inStock: boolean) => void;
-  onToggleSemantic: (semantic: boolean) => void;
   onResetFilters: () => void;
 }
 
@@ -24,17 +22,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   selectedSubCategoryId,
   selectedSort,
   onlyInStock,
-  isSemantic,
   totalProductsCount,
   onSelectCategory,
   onSelectSubCategory,
   onSelectSort,
   onToggleInStock,
-  onToggleSemantic,
   onResetFilters,
 }) => {
   const { t } = useTranslation();
-  const isFiltered = selectedCategoryId > 0 || selectedSubCategoryId > 0 || onlyInStock || isSemantic || selectedSort !== 'newest';
+  const isFiltered = selectedCategoryId > 0 || selectedSubCategoryId > 0 || onlyInStock || selectedSort !== 'newest';
 
   // Find active category's subcategories
   const activeCategory = categories.find((c) => c.id === selectedCategoryId);
@@ -138,21 +134,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </div>
 
         <div className="flex items-center gap-4">
-          {/* AI Semantic Search Toggle */}
-          <button
-            type="button"
-            data-testid="semantic-search-toggle"
-            onClick={() => onToggleSemantic(!isSemantic)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-xs transition-all cursor-pointer border ${
-              isSemantic
-                ? 'bg-purple-600 text-white border-purple-700 shadow-xs ring-2 ring-purple-300'
-                : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
-            }`}
-          >
-            <span>🧠</span>
-            <span>AI Semantic {isSemantic ? 'ON' : 'OFF'}</span>
-          </button>
-
           <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 select-none">
             <input
               type="checkbox"

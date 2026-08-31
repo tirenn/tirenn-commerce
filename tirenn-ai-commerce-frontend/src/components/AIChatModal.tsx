@@ -211,7 +211,7 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
 
       // If AI executed an add_to_cart action, dispatch to local CartContext (guest or user)
       const cartAction = data.cart_action;
-      if (cartAction && cartAction.action === 'cart_added') {
+      if (cartAction && (cartAction.action === 'cart_added' || cartAction.type === 'ADD_TO_CART')) {
         const prod = cartAction.product || cartAction;
         const targetId = prod.id || cartAction.id;
         if (targetId) {

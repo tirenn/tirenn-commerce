@@ -32,10 +32,50 @@ type productItemDef struct {
 func Seed(db *gorm.DB, ollamaClients ...*ollama.Client) error {
 	var productCount int64
 	db.Model(&product.Product{}).Count(&productCount)
-	if productCount >= 560 {
-		return nil // Already seeded with 560 products
+	if productCount < 560 {
+		return ForceSeed(db, ollamaClients...)
 	}
-	return ForceSeed(db, ollamaClients...)
+
+	var nullEmbeddingCount int64
+	db.Model(&product.Product{}).Where("embedding IS NULL").Count(&nullEmbeddingCount)
+	if nullEmbeddingCount > 0 && len(ollamaClients) > 0 && ollamaClients[0] != nil {
+		log.Printf("🧠 Backfilling %d missing product embeddings...", nullEmbeddingCount)
+		var prods []product.Product
+		db.Where("embedding IS NULL").Find(&prods)
+
+		var ollamaClient = ollamaClients[0]
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+
+		numWorkers := 8
+		jobs := make(chan *product.Product, len(prods))
+		var wg sync.WaitGroup
+
+		for w := 0; w < numWorkers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for prod := range jobs {
+					text := fmt.Sprintf("%s. %s", prod.Name, prod.Description)
+					vec, err := ollamaClient.GenerateEmbedding(ctx, text)
+					if err == nil && len(vec) > 0 {
+						pgVec := pgvector.NewVector(vec)
+						if err := db.Exec("UPDATE products SET embedding = ? WHERE id = ?", pgVec, prod.ID).Error; err != nil {
+							log.Printf("⚠️ Failed to update embedding for product %d: %v", prod.ID, err)
+						}
+					}
+				}
+			}()
+		}
+
+		for i := range prods {
+			jobs <- &prods[i]
+		}
+		close(jobs)
+		wg.Wait()
+		log.Println("✅ Missing vector embeddings successfully populated!")
+	}
+	return nil
 }
 
 // ForceSeed clears existing tables and seeds all 560 products, users, categories, and vector embeddings
@@ -771,7 +811,7 @@ func ForceSeed(db *gorm.DB, ollamaClients ...*ollama.Client) error {
 
 	if ollamaClient != nil {
 		log.Println("🧠 Computing 384-dimensional pgvector embeddings for all 560 products via Ollama...")
-		ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 
 		var prods []product.Product
@@ -787,11 +827,16 @@ func ForceSeed(db *gorm.DB, ollamaClients ...*ollama.Client) error {
 			go func() {
 				defer wg.Done()
 				for prod := range jobs {
+					if len(prod.Embedding.Slice()) > 0 {
+						continue
+					}
 					text := fmt.Sprintf("%s. %s", prod.Name, prod.Description)
 					vec, err := ollamaClient.GenerateEmbedding(ctx, text)
 					if err == nil && len(vec) > 0 {
 						pgVec := pgvector.NewVector(vec)
-						db.Model(&product.Product{}).Where("id = ?", prod.ID).Update("embedding", pgVec)
+						if err := db.Exec("UPDATE products SET embedding = ? WHERE id = ?", pgVec, prod.ID).Error; err != nil {
+							log.Printf("⚠️ Failed to update embedding for product %d: %v", prod.ID, err)
+						}
 					}
 				}
 			}()

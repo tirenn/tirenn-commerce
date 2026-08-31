@@ -56,11 +56,6 @@ func InitDB(cfg *config.Config) (*gorm.DB, error) {
 		log.Println("🐘 PostgreSQL pgvector extension verified/enabled.")
 	}
 
-	// 2. Seed initial test data
-	if err := Seed(db); err != nil {
-		log.Printf("Warning: Seeding initial data produced: %v\n", err)
-	}
-
 	log.Println("🐘 PostgreSQL Database successfully connected and initialized.")
 	return db, nil
 }

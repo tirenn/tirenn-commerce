@@ -176,10 +176,10 @@ func (c *Client) Chat(ctx context.Context, messages []ChatMessage, tools []ToolS
 	return &chatResp.Message, nil
 }
 
-// GenerateEmbedding generates a vector embedding slice from text input via Ollama
+// GenerateEmbedding generates a vector embedding slice from text input directly via Ollama
 func (c *Client) GenerateEmbedding(ctx context.Context, text string) ([]float32, error) {
 	if text == "" {
-		return make([]float32, 384), nil
+		return make([]float32, 768), nil
 	}
 
 	start := time.Now()
@@ -201,7 +201,7 @@ func (c *Client) GenerateEmbedding(ctx context.Context, text string) ([]float32,
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("error executing embedding request: %w", err)
+		return nil, fmt.Errorf("error executing ollama embedding request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -215,18 +215,10 @@ func (c *Client) GenerateEmbedding(ctx context.Context, text string) ([]float32,
 		return nil, fmt.Errorf("error decoding embedding response: %w", err)
 	}
 
-	// Ensure fixed 384 dimensions
-	if len(embedResp.Embedding) > 384 {
-		embedResp.Embedding = embedResp.Embedding[:384]
-	} else if len(embedResp.Embedding) < 384 {
-		padded := make([]float32, 384)
-		copy(padded, embedResp.Embedding)
-		embedResp.Embedding = padded
-	}
-
 	durationMs := float64(time.Since(start).Nanoseconds()) / 1e6
-	logger.LogEvent(ctx, "INFO", "ai.embedding", "EMBEDDING_GENERATED", "OllamaClient.GenerateEmbedding", fmt.Sprintf("Calculated 384-dim vector in %.2fms", durationMs), durationMs, map[string]interface{}{
+	logger.LogEvent(ctx, "INFO", "ai.embedding", "EMBEDDING_GENERATED", "OllamaClient.GenerateEmbedding", fmt.Sprintf("Calculated %d-dim vector in %.2fms", len(embedResp.Embedding), durationMs), durationMs, map[string]interface{}{
 		"model":       c.embeddingModel,
+		"dimensions":  len(embedResp.Embedding),
 		"text_length": len(text),
 		"duration_ms": durationMs,
 	}, nil)
