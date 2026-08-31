@@ -22,10 +22,12 @@ from app.usecases.sync_usecase import SyncUseCase
 from app.usecases.knowledge_usecase import KnowledgeUseCase
 from app.usecases.shopper_usecase import ShopperUseCase
 from app.usecases.admin_usecase import AdminUseCase
+from app.usecases.recommendation_usecase import RecommendationUseCase
 
 from app.handlers.chat_handler import get_chat_router
 from app.handlers.catalog_handler import get_catalog_router
 from app.handlers.knowledge_handler import get_knowledge_router
+from app.handlers.recommendation_handler import get_recommendation_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,11 +62,16 @@ admin_usecase = AdminUseCase(
     knowledge_usecase=knowledge_usecase,
     analytics_repo=analytics_repo
 )
+recommendation_usecase = RecommendationUseCase(
+    product_repo=product_repo,
+    embedding_repo=embedding_repo
+)
 
 # 3. Handlers
 chat_router = get_chat_router(shopper_usecase=shopper_usecase, admin_usecase=admin_usecase)
 catalog_router = get_catalog_router(search_usecase=search_usecase, sync_usecase=sync_usecase)
 knowledge_router = get_knowledge_router(knowledge_usecase=knowledge_usecase)
+recommendation_router = get_recommendation_router(recommendation_usecase=recommendation_usecase)
 
 async def _bg_sync():
     """Initial vector indexing sync on application boot"""
@@ -125,6 +132,7 @@ async def healthz():
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(catalog_router, prefix="/api/v1")
 app.include_router(knowledge_router, prefix="/api/v1")
+app.include_router(recommendation_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn

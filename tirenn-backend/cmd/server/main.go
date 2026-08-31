@@ -45,7 +45,7 @@ func main() {
 
 	// 5. Dependency Injection: UseCases
 	authUseCase := auth.NewUseCase(authRepo, cfg)
-	productUseCase := product.NewUseCase(productRepo, productAIClient)
+	productUseCase := product.NewUseCase(productRepo, productAIClient, rdb)
 	orderUseCase := order.NewUseCase(orderRepo)
 	customerUseCase := customer.NewUseCase(customerRepo)
 	dashboardUseCase := dashboard.NewUseCase(dashboardRepo)

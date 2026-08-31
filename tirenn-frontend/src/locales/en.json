@@ -44,7 +44,8 @@
     "subcategory": "Subcategory",
     "sku": "SKU",
     "rating": "Rating",
-    "reviews": "Reviews"
+    "reviews": "Reviews",
+    "similar_products": "You May Also Like"
   },
   "cart": {
     "title": "Shopping Cart",
@@ -56,7 +57,9 @@
     "total": "Total Amount",
     "checkout": "Proceed to Checkout",
     "clear": "Clear Cart",
-    "item_added": "Item successfully added to cart"
+    "item_added": "Item successfully added to cart",
+    "recommendations_title": "Frequently Bought Together",
+    "recommendations_subtitle": "Contextual Add-ons"
   },
   "checkout": {
     "title": "Checkout & Payment",

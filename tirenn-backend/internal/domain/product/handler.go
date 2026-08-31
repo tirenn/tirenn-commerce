@@ -103,6 +103,40 @@ func (h *Handler) GetProduct(c *gin.Context) {
 	utils.Success(c, http.StatusOK, "Product retrieved", product)
 }
 
+// GetRecommendations retrieves AI-based product recommendations with fallback
+func (h *Handler) GetRecommendations(c *gin.Context) {
+	param := c.Param("id")
+	id, err := strconv.ParseUint(param, 10, 32)
+	if err != nil {
+		utils.BadRequest(c, "Invalid product ID", err.Error())
+		return
+	}
+
+	limitStr := c.DefaultQuery("limit", "6")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		limit = 6
+	}
+
+	if limit < 4 {
+		limit = 4
+	} else if limit > 8 {
+		limit = 8
+	}
+
+	products, err := h.useCase.GetRecommendations(c.Request.Context(), uint(id), limit)
+	if err != nil {
+		if err.Error() == "product not found" {
+			utils.NotFound(c, "Product not found")
+			return
+		}
+		utils.InternalServerError(c, "Failed to retrieve recommendations", err.Error())
+		return
+	}
+
+	utils.Success(c, http.StatusOK, "Recommendations retrieved successfully", products)
+}
+
 // CreateProduct creates a new product (Admin)
 func (h *Handler) CreateProduct(c *gin.Context) {
 	var req CreateProductRequest

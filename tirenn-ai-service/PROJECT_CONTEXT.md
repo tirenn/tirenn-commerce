@@ -67,6 +67,11 @@ The Shopper Agent dispatches specialized tools via the Agent Harness:
 ## 📜 Service Changelog
 
 ### 📅 2026-08-28
+- `[AI Service]` Implemented Real-Time Product Recommendation Engine (`GET /api/v1/products/{id}/recommendations`):
+  - Added high-performance pgvector cosine distance search (`<=>`) on 384-dimensional embeddings.
+  - Added category/subcategory affinity soft-boost (+0.15 subcategory, +0.08 category) and dynamic price corridor ($0.4x - 2.5x$).
+  - Added `order_items` co-occurrence aggregation with vector fallback.
+  - 47/47 pytest unit & integration tests passing in 1.76s.
 - `[AI Service]` Cleaned and pruned dead code across `tirenn-ai-service`:
   - Deleted legacy in-memory session folder `app/harness/memory/` (superseded by Redis `SessionRepository`).
   - Deleted ad-hoc test file `app/harness/test_relevance_guardrail.py`.

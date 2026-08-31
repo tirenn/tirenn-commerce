@@ -33,6 +33,10 @@ type Repository interface {
 	ListSubCategories(ctx context.Context, categoryID uint) ([]SubCategory, error)
 	FindSubCategoryByID(ctx context.Context, id uint) (*SubCategory, error)
 	FindSubCategoryBySlug(ctx context.Context, slug string) (*SubCategory, error)
+
+	// Top sellers / recommendations fallback
+	GetCategoryTopSellers(ctx context.Context, categoryID uint, excludeID uint, limit int) ([]Product, error)
+	GetOverallTopSellers(ctx context.Context, excludeID uint, limit int) ([]Product, error)
 }
 
 type repository struct {
@@ -275,4 +279,28 @@ func (r *repository) FindSubCategoryBySlug(ctx context.Context, slug string) (*S
 		return nil, err
 	}
 	return &sc, nil
+}
+
+func (r *repository) GetCategoryTopSellers(ctx context.Context, categoryID uint, excludeID uint, limit int) ([]Product, error) {
+	var products []Product
+	err := r.db.WithContext(ctx).
+		Preload("Category").
+		Preload("SubCategory").
+		Where("category_id = ? AND id != ? AND is_active = ?", categoryID, excludeID, true).
+		Order("CASE WHEN badge ILIKE '%Terlaris%' OR badge ILIKE '%Best Seller%' THEN 0 ELSE 1 END ASC, rating DESC, id ASC").
+		Limit(limit).
+		Find(&products).Error
+	return products, err
+}
+
+func (r *repository) GetOverallTopSellers(ctx context.Context, excludeID uint, limit int) ([]Product, error) {
+	var products []Product
+	err := r.db.WithContext(ctx).
+		Preload("Category").
+		Preload("SubCategory").
+		Where("id != ? AND is_active = ?", excludeID, true).
+		Order("CASE WHEN badge ILIKE '%Terlaris%' OR badge ILIKE '%Best Seller%' THEN 0 ELSE 1 END ASC, rating DESC, id ASC").
+		Limit(limit).
+		Find(&products).Error
+	return products, err
 }

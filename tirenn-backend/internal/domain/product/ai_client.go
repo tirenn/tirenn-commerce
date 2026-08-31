@@ -12,6 +12,7 @@ import (
 type AIClient interface {
 	SearchSemantic(ctx context.Context, query string, categoryID uint, limit int) ([]uint, error)
 	SyncProducts(ctx context.Context, products []Product) error
+	GetRecommendations(ctx context.Context, productID uint, limit int) ([]uint, error)
 }
 
 type aiClient struct {
@@ -150,4 +151,62 @@ func (c *aiClient) SyncProducts(ctx context.Context, products []Product) error {
 	}
 	defer resp.Body.Close()
 	return nil
+}
+
+type recommendationItem struct {
+	ID     uint    `json:"id"`
+	Score  float64 `json:"score"`
+	Reason string  `json:"reason"`
+}
+
+type recommendationResp struct {
+	Success         bool                 `json:"success"`
+	ProductID       uint                 `json:"product_id"`
+	Recommendations []recommendationItem `json:"recommendations"`
+	Data            []recommendationItem `json:"data"`
+	Total           int                  `json:"total"`
+}
+
+func (c *aiClient) GetRecommendations(ctx context.Context, productID uint, limit int) ([]uint, error) {
+	if c.baseURL == "" {
+		return nil, fmt.Errorf("AI service URL not configured")
+	}
+
+	url := fmt.Sprintf("%s/api/v1/products/%d/recommendations?limit=%d", c.baseURL, productID, limit)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("AI service returned status code %d", resp.StatusCode)
+	}
+
+	var parsed recommendationResp
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return nil, err
+	}
+
+	items := parsed.Recommendations
+	if len(items) == 0 && len(parsed.Data) > 0 {
+		items = parsed.Data
+	}
+
+	ids := make([]uint, 0, len(items))
+	for _, item := range items {
+		if item.ID > 0 {
+			ids = append(ids, item.ID)
+		}
+	}
+	return ids, nil
 }

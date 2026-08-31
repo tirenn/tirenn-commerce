@@ -44,7 +44,8 @@
     "subcategory": "Subkategori",
     "sku": "SKU",
     "rating": "Rating",
-    "reviews": "Ulasan"
+    "reviews": "Ulasan",
+    "similar_products": "Produk Serupa"
   },
   "cart": {
     "title": "Keranjang Belanja",
@@ -56,7 +57,9 @@
     "total": "Total Pembayaran",
     "checkout": "Lanjut ke Pembayaran",
     "clear": "Kosongkan Keranjang",
-    "item_added": "Produk berhasil ditambahkan ke keranjang"
+    "item_added": "Produk berhasil ditambahkan ke keranjang",
+    "recommendations_title": "Pelengkap Belanja",
+    "recommendations_subtitle": "Rekomendasi Tambahan"
   },
   "checkout": {
     "title": "Konfirmasi Pembayaran",

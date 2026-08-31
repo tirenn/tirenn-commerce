@@ -70,7 +70,11 @@ internal/
 
 ## 📜 Service Changelog
 
-### 📅 2026-08-28
+- `[Golang]` Implemented Product Recommendation Endpoint & Redis Caching (`GET /api/v1/products/:id/recommendations`):
+  - Added `AIClient.GetRecommendations` calling `tirenn-ai-service` with `X-API-Key` authentication and timeout safeguards.
+  - Implemented Cache-Aside pattern in Redis under `recommendations:product:{id}` with 1-hour TTL (`3600s`) and mutation invalidation.
+  - Implemented deterministic fallback querying category/store top-sellers if AI service is temporarily unreachable.
+  - 14/14 Go unit/integration tests passing (including 1,000 concurrent request load test).
 - `[Golang]` Configured `INTERNAL_API_KEY` in `internal/config/config.go` and wired `X-API-Key` headers in `internal/domain/product/ai_client.go`.
 - `[Golang]` Fixed Admin Product Management Catalog Retrieval:
   - Registered `admin.GET("/products", handlers.Product.AdminListProducts)` in `internal/router/router.go`.

@@ -407,3 +407,360 @@ class ProductRepository:
             logger.error(f"Database error adjusting stock for product #{product_id}: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
+    def get_similar_products(self, product_id: int, limit: int = 6) -> List[Dict[str, Any]]:
+        """
+        Compute similar products using pgvector cosine similarity,
+        category (+0.08) and subcategory (+0.15) affinity soft-boost,
+        and dynamic price corridor (0.4 * target_price <= price <= 2.5 * target_price).
+        Excludes the target product itself and ensures is_active = true.
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # 1. Fetch target product details & embedding
+                    cur.execute("""
+                        SELECT id, name, category_id, sub_category_id, price, embedding::text AS embedding_str
+                        FROM products
+                        WHERE id = %s AND is_active = true
+                        LIMIT 1;
+                    """, (product_id,))
+                    target = cur.fetchone()
+                    if not target:
+                        logger.warning(f"Target product #{product_id} not found or inactive for recommendations.")
+                        return []
+
+                    target_cat = target["category_id"]
+                    target_subcat = target["sub_category_id"]
+                    target_price = float(target["price"] or 0.0)
+                    target_emb = target.get("embedding_str")
+
+                    # Price corridor calculation: [0.4 * target_price, 2.5 * target_price]
+                    min_price = target_price * 0.4 if target_price > 0 else 0.0
+                    max_price = target_price * 2.5 if target_price > 0 else 999999999.0
+
+                    if target_emb:
+                        # Vector similarity + Category/Subcategory Soft-Boost + Dynamic Price Corridor
+                        sql = """
+                            SELECT 
+                                p.id,
+                                p.name,
+                                p.sku,
+                                p.category_id,
+                                p.sub_category_id,
+                                COALESCE(sc.name, '') AS sub_category_name,
+                                p.price,
+                                COALESCE(p.currency, 'IDR') AS currency,
+                                COALESCE(p.image_url, '') AS image_url,
+                                p.stock_quantity,
+                                COALESCE(p.badge, '') AS badge,
+                                COALESCE(p.description, '') AS description,
+                                ROUND((
+                                    (1 - (p.embedding <=> %s::vector)) + 
+                                    CASE 
+                                        WHEN %s IS NOT NULL AND p.sub_category_id = %s THEN 0.15
+                                        WHEN %s IS NOT NULL AND p.category_id = %s THEN 0.08
+                                        ELSE 0.00
+                                    END
+                                )::numeric, 4) AS score
+                            FROM products p
+                            LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+                            WHERE p.is_active = true
+                              AND p.id != %s
+                              AND p.embedding IS NOT NULL
+                              AND (p.price BETWEEN %s AND %s)
+                            ORDER BY score DESC
+                            LIMIT %s;
+                        """
+                        cur.execute(
+                            sql,
+                            (
+                                target_emb,
+                                target_subcat, target_subcat,
+                                target_cat, target_cat,
+                                product_id,
+                                min_price, max_price,
+                                limit
+                            )
+                        )
+                        rows = cur.fetchall()
+
+                        # Fallback if price corridor yielded fewer items than limit: widen corridor
+                        if len(rows) < limit:
+                            existing_ids = tuple([r["id"] for r in rows] + [product_id])
+                            remaining = limit - len(rows)
+                            cur.execute("""
+                                SELECT 
+                                    p.id,
+                                    p.name,
+                                    p.sku,
+                                    p.category_id,
+                                    p.sub_category_id,
+                                    COALESCE(sc.name, '') AS sub_category_name,
+                                    p.price,
+                                    COALESCE(p.currency, 'IDR') AS currency,
+                                    COALESCE(p.image_url, '') AS image_url,
+                                    p.stock_quantity,
+                                    COALESCE(p.badge, '') AS badge,
+                                    COALESCE(p.description, '') AS description,
+                                    ROUND((
+                                        (1 - (p.embedding <=> %s::vector)) + 
+                                        CASE 
+                                            WHEN %s IS NOT NULL AND p.sub_category_id = %s THEN 0.15
+                                            WHEN %s IS NOT NULL AND p.category_id = %s THEN 0.08
+                                            ELSE 0.00
+                                        END
+                                    )::numeric, 4) AS score
+                                FROM products p
+                                LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+                                WHERE p.is_active = true
+                                  AND p.id NOT IN %s
+                                  AND p.embedding IS NOT NULL
+                                ORDER BY score DESC
+                                LIMIT %s;
+                            """, (target_emb, target_subcat, target_subcat, target_cat, target_cat, existing_ids, remaining))
+                            widen_rows = cur.fetchall()
+                            rows.extend(widen_rows)
+
+                        results = []
+                        for r in rows:
+                            results.append({
+                                "id": r["id"],
+                                "name": r["name"],
+                                "sku": r["sku"],
+                                "category_id": r["category_id"],
+                                "sub_category_id": r.get("sub_category_id"),
+                                "sub_category_name": r.get("sub_category_name", ""),
+                                "price": float(r["price"]),
+                                "currency": r.get("currency", "IDR"),
+                                "image_url": r.get("image_url", ""),
+                                "stock_quantity": int(r.get("stock_quantity") or 0),
+                                "badge": r.get("badge", ""),
+                                "description": r.get("description", ""),
+                                "score": float(r["score"]),
+                                "reason": "similar_category_price"
+                            })
+                        return results
+                    else:
+                        # Cold start / no embedding on target product -> Category-based fallback
+                        cur.execute("""
+                            SELECT 
+                                p.id,
+                                p.name,
+                                p.sku,
+                                p.category_id,
+                                p.sub_category_id,
+                                COALESCE(sc.name, '') AS sub_category_name,
+                                p.price,
+                                COALESCE(p.currency, 'IDR') AS currency,
+                                COALESCE(p.image_url, '') AS image_url,
+                                p.stock_quantity,
+                                COALESCE(p.badge, '') AS badge,
+                                COALESCE(p.description, '') AS description,
+                                0.5000 AS score
+                            FROM products p
+                            LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+                            WHERE p.is_active = true
+                              AND p.id != %s
+                              AND (%s IS NULL OR p.category_id = %s)
+                            ORDER BY p.stock_quantity DESC, p.id ASC
+                            LIMIT %s;
+                        """, (product_id, target_cat, target_cat, limit))
+                        rows = cur.fetchall()
+                        return [
+                            {
+                                "id": r["id"],
+                                "name": r["name"],
+                                "sku": r["sku"],
+                                "category_id": r["category_id"],
+                                "sub_category_id": r.get("sub_category_id"),
+                                "sub_category_name": r.get("sub_category_name", ""),
+                                "price": float(r["price"]),
+                                "currency": r.get("currency", "IDR"),
+                                "image_url": r.get("image_url", ""),
+                                "stock_quantity": int(r.get("stock_quantity") or 0),
+                                "badge": r.get("badge", ""),
+                                "description": r.get("description", ""),
+                                "score": float(r["score"]),
+                                "reason": "category_fallback"
+                            }
+                            for r in rows
+                        ]
+        except Exception as e:
+            logger.error(f"Error computing similar products for #{product_id}: {e}", exc_info=True)
+            return []
+
+    def get_frequently_bought_together(self, product_id: int, limit: int = 6) -> List[Dict[str, Any]]:
+        """
+        Compute frequently bought together products via co-occurrence aggregation on order_items.
+        Falls back to cross-category vector similarity when co-occurrence count is low or empty.
+        """
+        results: List[Dict[str, Any]] = []
+        seen_ids = {product_id}
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # 1. Co-occurrence query on order_items
+                    cur.execute("""
+                        SELECT 
+                            oi2.product_id AS id,
+                            COUNT(DISTINCT oi2.order_id) AS co_occurrence_count,
+                            p.name,
+                            p.sku,
+                            p.category_id,
+                            p.sub_category_id,
+                            COALESCE(sc.name, '') AS sub_category_name,
+                            p.price,
+                            COALESCE(p.currency, 'IDR') AS currency,
+                            COALESCE(p.image_url, '') AS image_url,
+                            p.stock_quantity,
+                            COALESCE(p.badge, '') AS badge,
+                            COALESCE(p.description, '') AS description
+                        FROM order_items oi1
+                        INNER JOIN order_items oi2 ON oi1.order_id = oi2.order_id AND oi1.product_id != oi2.product_id
+                        INNER JOIN orders o ON o.id = oi1.order_id
+                        INNER JOIN products p ON p.id = oi2.product_id
+                        LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+                        WHERE oi1.product_id = %s 
+                          AND (o.status IS NULL OR o.status != 'CANCELLED')
+                          AND p.is_active = true
+                        GROUP BY oi2.product_id, p.id, p.name, p.sku, p.category_id, p.sub_category_id, sc.name, p.price, p.currency, p.image_url, p.stock_quantity, p.badge, p.description
+                        ORDER BY co_occurrence_count DESC
+                        LIMIT %s;
+                    """, (product_id, limit))
+                    co_rows = cur.fetchall()
+
+                    for r in co_rows:
+                        seen_ids.add(r["id"])
+                        co_count = int(r["co_occurrence_count"])
+                        score = round(min(1.0, 0.60 + 0.08 * co_count), 4)
+                        results.append({
+                            "id": r["id"],
+                            "name": r["name"],
+                            "sku": r["sku"],
+                            "category_id": r["category_id"],
+                            "sub_category_id": r.get("sub_category_id"),
+                            "sub_category_name": r.get("sub_category_name", ""),
+                            "price": float(r["price"]),
+                            "currency": r.get("currency", "IDR"),
+                            "image_url": r.get("image_url", ""),
+                            "stock_quantity": int(r.get("stock_quantity") or 0),
+                            "badge": r.get("badge", ""),
+                            "description": r.get("description", ""),
+                            "score": score,
+                            "reason": "frequently_bought_together"
+                        })
+
+                    # 2. Cross-category vector fallback if co-occurrence count is low (< limit)
+                    if len(results) < limit:
+                        needed = limit - len(results)
+                        cur.execute("""
+                            SELECT id, category_id, embedding::text AS embedding_str
+                            FROM products
+                            WHERE id = %s AND is_active = true
+                            LIMIT 1;
+                        """, (product_id,))
+                        target = cur.fetchone()
+
+                        if target and target.get("embedding_str"):
+                            target_emb = target["embedding_str"]
+                            target_cat = target["category_id"]
+                            excluded_ids = tuple(seen_ids)
+
+                            # First try products in different categories
+                            cur.execute("""
+                                SELECT 
+                                    p.id,
+                                    p.name,
+                                    p.sku,
+                                    p.category_id,
+                                    p.sub_category_id,
+                                    COALESCE(sc.name, '') AS sub_category_name,
+                                    p.price,
+                                    COALESCE(p.currency, 'IDR') AS currency,
+                                    COALESCE(p.image_url, '') AS image_url,
+                                    p.stock_quantity,
+                                    COALESCE(p.badge, '') AS badge,
+                                    COALESCE(p.description, '') AS description,
+                                    ROUND((1 - (p.embedding <=> %s::vector))::numeric, 4) AS score
+                                FROM products p
+                                LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+                                WHERE p.is_active = true 
+                                  AND p.embedding IS NOT NULL
+                                  AND p.id NOT IN %s
+                                  AND (%s IS NULL OR p.category_id != %s)
+                                ORDER BY score DESC
+                                LIMIT %s;
+                            """, (target_emb, excluded_ids, target_cat, target_cat, needed))
+                            cross_rows = cur.fetchall()
+
+                            for r in cross_rows:
+                                seen_ids.add(r["id"])
+                                results.append({
+                                    "id": r["id"],
+                                    "name": r["name"],
+                                    "sku": r["sku"],
+                                    "category_id": r["category_id"],
+                                    "sub_category_id": r.get("sub_category_id"),
+                                    "sub_category_name": r.get("sub_category_name", ""),
+                                    "price": float(r["price"]),
+                                    "currency": r.get("currency", "IDR"),
+                                    "image_url": r.get("image_url", ""),
+                                    "stock_quantity": int(r.get("stock_quantity") or 0),
+                                    "badge": r.get("badge", ""),
+                                    "description": r.get("description", ""),
+                                    "score": float(r["score"]),
+                                    "reason": "cross_category_vector"
+                                })
+
+                        # If still needed, fill with any active products not seen yet
+                        if len(results) < limit:
+                            still_needed = limit - len(results)
+                            excluded_ids = tuple(seen_ids)
+                            cur.execute("""
+                                SELECT 
+                                    p.id,
+                                    p.name,
+                                    p.sku,
+                                    p.category_id,
+                                    p.sub_category_id,
+                                    COALESCE(sc.name, '') AS sub_category_name,
+                                    p.price,
+                                    COALESCE(p.currency, 'IDR') AS currency,
+                                    COALESCE(p.image_url, '') AS image_url,
+                                    p.stock_quantity,
+                                    COALESCE(p.badge, '') AS badge,
+                                    COALESCE(p.description, '') AS description,
+                                    0.4500 AS score
+                                FROM products p
+                                LEFT JOIN sub_categories sc ON sc.id = p.sub_category_id
+                                WHERE p.is_active = true
+                                  AND p.id NOT IN %s
+                                ORDER BY p.stock_quantity DESC, p.id ASC
+                                LIMIT %s;
+                            """, (excluded_ids, still_needed))
+                            fill_rows = cur.fetchall()
+                            for r in fill_rows:
+                                seen_ids.add(r["id"])
+                                results.append({
+                                    "id": r["id"],
+                                    "name": r["name"],
+                                    "sku": r["sku"],
+                                    "category_id": r["category_id"],
+                                    "sub_category_id": r.get("sub_category_id"),
+                                    "sub_category_name": r.get("sub_category_name", ""),
+                                    "price": float(r["price"]),
+                                    "currency": r.get("currency", "IDR"),
+                                    "image_url": r.get("image_url", ""),
+                                    "stock_quantity": int(r.get("stock_quantity") or 0),
+                                    "badge": r.get("badge", ""),
+                                    "description": r.get("description", ""),
+                                    "score": float(r["score"]),
+                                    "reason": "catalog_fallback"
+                                })
+
+            return results
+        except Exception as e:
+            logger.error(f"Error computing frequently bought together for #{product_id}: {e}", exc_info=True)
+            return []
+

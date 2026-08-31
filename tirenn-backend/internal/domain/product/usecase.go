@@ -2,12 +2,14 @@ package product
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"gocommerce-backend/internal/logger"
 )
 
@@ -18,6 +20,7 @@ type UseCase interface {
 	UpdateProduct(ctx context.Context, id uint, req *UpdateProductRequest) (*Product, error)
 	DeleteProduct(ctx context.Context, id uint) error
 	ListProducts(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error)
+	GetRecommendations(ctx context.Context, productID uint, limit int) ([]Product, error)
 
 	AdjustStock(ctx context.Context, productID uint, req *StockAdjustRequest, adminID uint) (*Product, error)
 	GetStockLogs(ctx context.Context, productID uint) ([]StockAdjustmentLog, error)
@@ -32,12 +35,14 @@ type UseCase interface {
 type useCase struct {
 	repo     Repository
 	aiClient AIClient
+	rdb      *redis.Client
 }
 
-func NewUseCase(repo Repository, aiClient AIClient) UseCase {
+func NewUseCase(repo Repository, aiClient AIClient, rdb *redis.Client) UseCase {
 	return &useCase{
 		repo:     repo,
 		aiClient: aiClient,
+		rdb:      rdb,
 	}
 }
 
@@ -185,10 +190,15 @@ func (u *useCase) UpdateProduct(ctx context.Context, id uint, req *UpdateProduct
 	}
 
 	updated, err := u.repo.FindByID(ctx, p.ID)
-	if err == nil && u.aiClient != nil {
-		go func() {
-			_ = u.aiClient.SyncProducts(context.Background(), []Product{*updated})
-		}()
+	if err == nil {
+		if u.rdb != nil {
+			_ = u.rdb.Del(ctx, fmt.Sprintf("recommendations:product:%d", id)).Err()
+		}
+		if u.aiClient != nil {
+			go func() {
+				_ = u.aiClient.SyncProducts(context.Background(), []Product{*updated})
+			}()
+		}
 	}
 
 	return updated, err
@@ -204,6 +214,10 @@ func (u *useCase) DeleteProduct(ctx context.Context, id uint) error {
 	if err := u.repo.Delete(ctx, id); err != nil {
 		logger.Error(ctx, "usecase", fmt.Sprintf("failed to delete product %d in repository", id), err)
 		return err
+	}
+
+	if u.rdb != nil {
+		_ = u.rdb.Del(ctx, fmt.Sprintf("recommendations:product:%d", id)).Err()
 	}
 	return nil
 }
@@ -316,4 +330,105 @@ func (u *useCase) ListSubCategories(ctx context.Context, categoryID uint) ([]Sub
 		return nil, err
 	}
 	return subCategories, nil
+}
+
+func (u *useCase) GetRecommendations(ctx context.Context, productID uint, limit int) ([]Product, error) {
+	if limit < 4 {
+		limit = 4
+	} else if limit > 8 {
+		limit = 8
+	}
+
+	cacheKey := fmt.Sprintf("recommendations:product:%d", productID)
+
+	// 1. Check Redis cache (Cache-Aside pattern)
+	if u.rdb != nil {
+		cachedJSON, err := u.rdb.Get(ctx, cacheKey).Result()
+		if err == nil && cachedJSON != "" {
+			var cachedProducts []Product
+			if err := json.Unmarshal([]byte(cachedJSON), &cachedProducts); err == nil && len(cachedProducts) > 0 {
+				if len(cachedProducts) > limit {
+					return cachedProducts[:limit], nil
+				}
+				return cachedProducts, nil
+			}
+		}
+	}
+
+	// 2. Verify target product existence & get category
+	targetProduct, err := u.repo.FindByID(ctx, productID)
+	if err != nil || targetProduct == nil {
+		logger.Warn(ctx, "usecase", fmt.Sprintf("product not found for recommendations with id %d", productID), err)
+		return nil, errors.New("product not found")
+	}
+
+	var products []Product
+	var aiSuccess bool
+
+	// 3. Attempt AI Service vector recommendation
+	if u.aiClient != nil {
+		aiCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		defer cancel()
+
+		ids, err := u.aiClient.GetRecommendations(aiCtx, productID, limit)
+		if err != nil {
+			logger.Warn(ctx, "usecase", fmt.Sprintf("AI recommendation service call failed for product %d: %v", productID, err), err)
+		} else if len(ids) > 0 {
+			resolved, err := u.repo.FindByIDs(ctx, ids)
+			if err != nil {
+				logger.Warn(ctx, "usecase", fmt.Sprintf("failed to resolve products by IDs for product %d: %v", productID, err), err)
+			} else if len(resolved) > 0 {
+				products = resolved
+				aiSuccess = true
+			}
+		}
+	}
+
+	// 4. Deterministic fallback if AI service fails, times out, or returns empty
+	if !aiSuccess || len(products) == 0 {
+		categoryTop, err := u.repo.GetCategoryTopSellers(ctx, targetProduct.CategoryID, productID, limit)
+		if err != nil {
+			logger.Warn(ctx, "usecase", fmt.Sprintf("failed to query category top sellers for product %d", productID), err)
+		} else {
+			products = append(products, categoryTop...)
+		}
+
+		if len(products) < limit {
+			overallTop, err := u.repo.GetOverallTopSellers(ctx, productID, limit)
+			if err != nil {
+				logger.Warn(ctx, "usecase", fmt.Sprintf("failed to query overall top sellers for product %d", productID), err)
+			} else {
+				seen := make(map[uint]bool)
+				seen[productID] = true
+				for _, p := range products {
+					seen[p.ID] = true
+				}
+
+				for _, p := range overallTop {
+					if !seen[p.ID] {
+						products = append(products, p)
+						seen[p.ID] = true
+						if len(products) >= limit {
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 5. Store in Redis cache with 1-hour TTL (3600 seconds)
+	if u.rdb != nil && len(products) > 0 {
+		if data, err := json.Marshal(products); err == nil {
+			if err := u.rdb.Set(ctx, cacheKey, string(data), 1*time.Hour).Err(); err != nil {
+				logger.Warn(ctx, "usecase", fmt.Sprintf("failed to cache recommendations for product %d in Redis: %v", productID, err), err)
+			}
+		}
+	}
+
+	if len(products) > limit {
+		products = products[:limit]
+	}
+
+	return products, nil
 }

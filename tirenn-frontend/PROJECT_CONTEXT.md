@@ -52,7 +52,10 @@ The application renders two primary view suites depending on user role and navig
 
 ## 📜 Service Changelog
 
-### 📅 2026-08-28
+- `[Frontend]` Implemented Product Recommendation UI Components (`ProductDetailModal.tsx` & `CartDrawer.tsx`):
+  - Integrated horizontal recommendation carousel in Product Detail Modal with responsive cards, price display, and quick-add actions.
+  - Integrated contextual add-ons in Cart Drawer with 1-click "Add to Cart" capability and real-time cart badge updates.
+  - Fully localized in Indonesian & English with dynamic currency formatting (`IDR`/`USD`).
 - `[Frontend]` Updated `AIChatModal.tsx` to render the initial welcome message dynamically through `getWelcomeMessage(i18n.language)` directly in the JSX tree, guaranteeing instant re-render upon language toggle (ID $\leftrightarrow$ EN) in both directions.
 - `[Frontend]` Rebuilt production Docker container `tirenn-frontend`.
 - `[Frontend]` Implemented Stock Adjustment Confirmation Guardrail (`StockAdjustmentModal.tsx`):

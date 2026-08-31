@@ -68,6 +68,7 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, rdb *redis.Client) *gin
 		// -------------------------------------------------------------
 		v1.GET("/products", handlers.Product.ListProducts)
 		v1.GET("/products/:id", handlers.Product.GetProduct)
+		v1.GET("/products/:id/recommendations", handlers.Product.GetRecommendations)
 		v1.GET("/categories", handlers.Product.ListCategories)
 		v1.GET("/sub-categories", handlers.Product.ListSubCategories)
 

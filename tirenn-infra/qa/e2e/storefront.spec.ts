@@ -153,4 +153,62 @@ test.describe('Storefront User-Facing Functionality', () => {
 
     await expect(page.locator('text=Riwayat Belanja').or(page.locator('text=My Orders')).or(page.locator('text=Your Orders')).first()).toBeVisible();
   });
+
+  test('9. Should display AI product recommendations in PDP and Cart Drawer with 1-click quick add', async ({ page }) => {
+    // Step 1: Open the first product card from storefront grid to view PDP
+    const firstCard = page.locator('[data-testid^="product-card-"]').first();
+    await firstCard.click();
+
+    // Step 2: Assert PDP Modal is visible
+    const pdpModal = page.getByTestId('pdp-modal');
+    await expect(pdpModal).toBeVisible();
+
+    // Step 3: Assert PDP recommendations section is rendered with recommendation cards
+    const pdpRecSection = page.getByTestId('pdp-recommendations-section');
+    await expect(pdpRecSection).toBeVisible({ timeout: 10000 });
+
+    const pdpRecCards = page.locator('[data-testid^="pdp-recommendation-card-"]');
+    await expect(pdpRecCards.first()).toBeVisible();
+    const pdpRecCount = await pdpRecCards.count();
+    expect(pdpRecCount).toBeGreaterThan(0);
+
+    // Step 4: Verify currency symbol is rendered on recommendation cards (Rp or $)
+    await expect(
+      pdpRecCards.first().locator('text=Rp').or(pdpRecCards.first().locator('text=$')).first()
+    ).toBeVisible();
+
+    // Step 5: Perform 1-Click Quick Add from PDP recommendation
+    const pdpQuickAddBtn = page.locator('[data-testid^="pdp-recommendation-add-"]').first();
+    await pdpQuickAddBtn.click();
+
+    // Step 6: Verify Cart Badge appears and is visible
+    const cartBadge = page.getByTestId('cart-badge');
+    await expect(cartBadge).toBeVisible();
+
+    // Step 7: Close PDP Modal
+    await page.getByTestId('pdp-close').click();
+    await expect(pdpModal).not.toBeVisible();
+
+    // Step 8: Open Cart Drawer
+    await page.getByTestId('cart-button').click();
+    const cartDrawer = page.getByTestId('cart-drawer');
+    await expect(cartDrawer).toBeVisible();
+
+    // Step 9: Verify Cart contains item and displays Cart Drawer Contextual Recommendations
+    await expect(page.locator('[data-testid^="cart-item-"]').first()).toBeVisible();
+    const cartRecSection = page.getByTestId('cart-recommendations-section');
+    await expect(cartRecSection).toBeVisible({ timeout: 10000 });
+
+    const cartRecCards = page.locator('[data-testid^="cart-recommendation-card-"]');
+    await expect(cartRecCards.first()).toBeVisible();
+
+    // Step 10: Perform 1-Click Quick Add from Cart Drawer recommendations
+    const cartQuickAddBtn = page.locator('[data-testid^="cart-recommendation-add-"]').first();
+    await cartQuickAddBtn.click();
+
+    // Step 11: Verify Cart Total Price updates and close drawer
+    await expect(page.getByTestId('cart-total-price')).toBeVisible();
+    await page.getByTestId('cart-drawer-close').click();
+    await expect(cartDrawer).not.toBeVisible();
+  });
 });

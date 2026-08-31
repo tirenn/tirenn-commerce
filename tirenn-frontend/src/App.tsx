@@ -396,6 +396,7 @@ export const App: React.FC = () => {
             product={selectedProduct}
             onClose={() => setSelectedProduct(null)}
             onDirectCheckout={() => setIsCheckoutOpen(true)}
+            onSelectProduct={(p) => setSelectedProduct(p)}
           />
 
           <AIChatModal

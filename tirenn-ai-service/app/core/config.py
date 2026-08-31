@@ -1,7 +1,9 @@
 import os
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
     SERVICE_NAME: str = "Tirenn AI Commerce & Shopper Service"
     PORT: int = 8000
     HOST: str = "0.0.0.0"
@@ -74,10 +76,6 @@ class Settings(BaseSettings):
 
     # Internal Machine-to-Machine Secret Key
     INTERNAL_API_KEY: str = "very-very-secret-internal-key-2026"
-
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
 
 
 settings = Settings()

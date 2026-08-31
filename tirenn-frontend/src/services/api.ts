@@ -1,4 +1,4 @@
-import type { ApiResponse } from '../types';
+import type { ApiResponse, Product } from '../types';
 
 function getApiBaseUrl(): string {
   if (import.meta.env.VITE_API_BASE_URL) {
@@ -71,3 +71,21 @@ export async function apiRequest<T>(
     };
   }
 }
+
+export async function getRecommendations(
+  productId: number,
+  limit: number = 6
+): Promise<Product[]> {
+  if (!productId) return [];
+  try {
+    const res = await apiRequest<Product[]>(`/products/${productId}/recommendations?limit=${limit}`);
+    if (res.success && Array.isArray(res.data)) {
+      return res.data;
+    }
+    return [];
+  } catch (err) {
+    console.error(`Failed to fetch recommendations for product ${productId}:`, err);
+    return [];
+  }
+}
+
