@@ -40,6 +40,60 @@ tirenn-commerce/
 
 ### 📅 2026-08-28
 
+- `[Project Architecture & Standardization]` Unified Project Naming `tirenn-ai-commerce`:
+  - **Go Module Rename (`go.mod`)**: Migrated module from `gocommerce-backend` to `module tirenn-ai-commerce`.
+  - **Source Import Refactor**: Standardized all 37 Go packages to `tirenn-ai-commerce/internal/...`.
+  - **Fullstack Alignment**: Updated Frontend (`package.json` -> `tirenn-ai-commerce-frontend`), AI Service (`SERVICE_NAME`), and QA module (`tirenn-ai-commerce-qa`).
+- `[Database & Goose Migrations]` PostgreSQL pgvector DDL Conversion & Clean Schema Automation:
+  - **DDL Syntax Standardization**: Converted legacy MySQL syntax across all 10 Goose migration files to idiomatic PostgreSQL (`BIGSERIAL`, `TIMESTAMPTZ`, `pg_trgm` GIN trigram indexes, `vector(384)`).
+  - **Schema/Data Separation**: Removed redundant GORM `AutoMigrate` in seeder to grant Goose 100% authority over DDL schema.
+- `[Golang & AI Product Embedding]` Automated pgvector Dense Embedding for Create, Update, and Seeder:
+  - **Create & Update Pipeline (`product.UseCase`)**: Injected `ollamaClient` into `product.UseCase`. `CreateProduct` automatically calculates 384-dimensional dense vector embeddings. `UpdateProduct` detects changes to name/description and recomputes embeddings dynamically.
+  - **Concurrent Seeding Worker Pool (`database.ForceSeed`)**: Implemented an 8-worker goroutine pool in `seeder.go` and `cmd/seed` to embed all 560 products in ~25s.
+- `[Golang & Tooling]` Database Seeder CLI & Automation Make Commands:
+  - **Seeder CLI (`cmd/seed/main.go`)**: Created dedicated seeder tool supporting `-force` reset and seeding all 560 products, users, and categories.
+  - **Host Agnostic Connection (`database.go`)**: Implemented automatic `127.0.0.1` fallback when executed outside Docker network.
+  - **Make Automation (`Makefile`)**: Added `make seed`, `make db-seed`, and `make db-reset`.
+- `[Golang & AI Fullstack]` LLM Temperature, Similarity Thresholds & Hybrid Search Config:
+  - **Dynamic Environment Binding (`.env` & `internal/config`)**: Mapped `LLM_TOOL_TEMPERATURE`, `LLM_CHAT_TEMPERATURE`, `DEFAULT_SEARCH_SCORE_THRESHOLD`, `CHAT_SEARCH_SCORE_THRESHOLD`, `CHAT_SEARCH_FALLBACK_THRESHOLD`, `ENABLE_HYBRID_SEARCH`, `HYBRID_VECTOR_WEIGHT`, `HYBRID_TEXT_WEIGHT`, `SEARCH_LIMIT`, `CHAT_SEARCH_LIMIT`.
+  - **Hybrid Dense-Vector + Keyword SQL Ranking**: Implemented weighted combination score formula in `SearchProductsTool` with automatic fallback.
+  - **Dynamic ReAct Temperatures**: Configured `toolTemperature` (0.0) for deterministic tool parameter invocation and `chatTemperature` (0.3) for natural conversations in `AgentHarness`.
+- `[Fullstack Observability & Distributed Tracing]` Distributed Tracing, AI/RAG Telemetry, and Grafana Loki Dashboard:
+  - **High-Precision Structured Logger (`internal/logger`)**: Standardized telemetry payload with `func`, `duration_ms`, `event`, `is_slow`, `metadata`. Added `Track(ctx, layer, funcName)` for zero-overhead function timing and bottleneck identification ($> 200\text{ms}$).
+  - **AI & LLM Model Telemetry**: Integrated prompt tracking, token/message count, model inference latency in ms (`LLM_RESPONSE`), and ReAct tool execution time (`TOOL_EXECUTION`).
+  - **RAG Stage Breakdown**: Created `logger.NewRAGTracker` capturing exact latency across Stage 1 (Vector Retrieval), Stage 2 (Context Augmentation), and Stage 3 (LLM Generation).
+  - **Grafana Observability Dashboard**: Pre-provisioned Grafana dashboard (`tirenn-observability` at `:3001`) with P95 latency charts, slow operation alerts, and live log stream.
+- `[Golang & Hexagonal Architecture]` AI Subsystem Modularization & External Client Extraction:
+  - **External Infrastructure Client (`internal/client/ollama`)**: Extracted all HTTP communication with Ollama LLM and Embeddings to dedicated package in the outer client layer.
+  - **Modular ReAct Tools Subpackage (`internal/domain/ai/tools`)**: Organized tools (`catalog.go`, `cart.go`, `analytics.go`, `inventory.go`, `knowledge.go`, `models.go`) into dedicated subpackage with zero circular imports.
+  - **Consolidated AI Core**: Unified repositories into `repository.go` and use cases into `usecase.go`, reducing root `domain/ai` file count from ~15 files down to 7 clean, focused files.
+- `[Golang & Architecture Overhaul]` Full Clean Architecture & Readability Refactoring:
+  - **DTO Standardization**: Created dedicated `dto.go` in all domain modules (`auth`, `product`, `order`, `customer`, `dashboard`, `ai`), strictly separating database entities from presentation DTO schemas.
+  - **Domain Errors & Auto HTTP Mapping**: Created `internal/domain/errors.go` and `internal/response/response.go` with automatic error-to-status code translation (404, 401, 403, 409, 400).
+  - **Removed Utils Anti-Pattern**: Replaced `internal/utils` with dedicated `internal/security` (`jwt.go`, `hash.go`, `slug.go`) and `internal/response`.
+  - **Modular Route Registration**: Implemented `RegisterRoutes(rg *gin.RouterGroup)` on all domain handlers; simplified `internal/router/router.go` to ~50 lines.
+- `[Golang & Code Architecture]` Removed `ai_client.go` & Consolidated Recommendations into `product.Repository`:
+  - Removed redundant `ai_client.go` file and interface entirely.
+  - Implemented `GetRecommendations(ctx, productID, limit)` natively in `product.Repository` using PostgreSQL pgvector cosine similarity (`<=>`) and category soft-boost.
+  - Cleaned `product.UseCase` constructor to standard `NewUseCase(repo, rdb)` adhering to Clean Architecture principles.
+- `[Golang & Code Architecture]` Refactored AI Domain Structs into Dedicated Module (`models.go`):
+  - Extracted all inline function-scoped structs into package-level DTOs: `CatalogProductRow`, `CatalogProductDetail`, `CartProductInfo`, `AnalyticsTopProduct`, `AnalyticsOrderRow`, `InventoryLowStockProduct`, `InventoryProductRecord`, `InventoryStockAdjustmentLog`.
+  - Zero inline struct definitions remaining in function bodies across all tool implementations.
+- `[Frontend & Fullstack Integration]` Unified 100% of Web API Requests to Golang Backend (`:8080`):
+  - Configured `tirenn-frontend` to route all AI endpoints (`/chat/shopper`, `/chat/admin`, `/knowledge/*`, `/catalog/search`) directly through the compiled Golang backend on port `:8080`.
+  - Updated `src/services/api.ts`, `AdminAIChatDrawer.tsx`, and `KnowledgeManagement.tsx` to default all AI API requests to `getApiBaseUrl()`.
+  - Set `VITE_AI_SERVICE_URL=http://localhost:8080/api/v1` in `tirenn-frontend/.env`.
+  - Verified Vite production build (`npm run build`) succeeded with 0 errors in 1.36s.
+- `[Golang & AI Engine]` Migrated AI Service Engine to Native Golang (`tirenn-backend/internal/domain/ai`):
+  - **Embedding Consistency**: Standardized on `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` across both Golang and Python to guarantee 100% vector space consistency for 560 catalog products.
+  - **ReAct Agent Harness**: Autonomous multi-turn tool-calling loop (`AgentHarness`) with Ollama `/api/chat` integration and 0.2 temperature.
+  - **Ollama Client**: Native Go HTTP client for Ollama LLM chat and 384-dimensional text embeddings (`/api/embeddings`).
+  - **Customer Tools Layer**: `SearchProductsTool` (pgvector `<=>` cosine similarity + category filter), `GetProductDetailTool`, `CheckProductStockTool`, `AddToCartTool`, `ViewCartTool`, `SearchStorePoliciesAndSOPTool` (`doc_type = 'SOP_CUSTOMER'`).
+  - **Admin Tools Layer**: `GetExecutiveDashboardMetricsTool`, `GetRecentOrdersOverviewTool`, `GetLowStockProductsTool`, `AdjustProductStockTool` (2-step confirmation guardrail with atomic GORM SQL transaction + `stock_adjustment_logs`), `SearchAdminInternalSOPTool` (`doc_type = 'SOP_ADMIN'`).
+  - **Redis Sessions & 2-Tier RAG Cache**: Sliding window buffer (`chat:session:{session_id}`) with 24h TTL and exact normalized SHA-256 hash cache (`rag:exact:{doc_type}:{hash}`) with 2h TTL.
+  - **Endpoints Registered**: `POST /api/v1/chat/shopper`, `POST /api/v1/chat/admin`, `DELETE /api/v1/chat/session/:id`, `GET /api/v1/catalog/search`, `POST /api/v1/knowledge/upload`, `POST /api/v1/knowledge/ask`, `GET /api/v1/knowledge/documents`, `DELETE /api/v1/knowledge/documents/:id`.
+  - **Preserved Existing Codebase**: Original Python `tirenn-ai-service/` preserved 100% intact.
+  - **Test Suite**: All unit tests in `internal/domain/ai/ai_test.go` and full Go test suite PASSED.
 - `[AI Service]` Implemented Canonical 4-Layer Single Agent Harness Architecture:
   - **Layer 1 (Chat UI)**: Pure frontend rendering connected strictly to Agent API (`POST /api/v1/chat/shopper`).
   - **Layer 2 (Agent Orchestrator)**: Domain-agnostic ReAct tool-calling loop with configurable max iteration cap (`max_iterations = 5`) and stateless per-session processing.

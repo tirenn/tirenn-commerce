@@ -1,0 +1,126 @@
+version: '3.8'
+
+# ==============================================================================
+# Tirenn Commerce - Core Infrastructure Stack
+# Services: PostgreSQL (pgvector), Redis, Ollama, Loki, Promtail, Grafana
+# All configuration values are loaded strictly from .env
+# ==============================================================================
+
+services:
+  # 1. PostgreSQL Database with pgvector Extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: tirenn-postgres
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tirenn-net
+
+  # 2. Redis In-Memory Cache (Distributed Rate Limiting)
+  redis:
+    image: redis:7-alpine
+    container_name: tirenn-redis
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - tirenn-net
+
+  # 3. Ollama LLM Container (Qwen 2.5 for AI Shopper)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: tirenn-ollama
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - tirenn-net
+
+  # 4. Centralized Log Storage Engine (Grafana Loki)
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: tirenn-loki
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./logging/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    networks:
+      - tirenn-net
+
+  # 5. Log Collector & Docker Shipper (Grafana Promtail)
+  promtail:
+    image: grafana/promtail:3.0.0
+    container_name: tirenn-promtail
+    restart: always
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./logging/promtail-config.yml:/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - tirenn-net
+
+  # 6. Unified Log Visualization Dashboard (Grafana)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: tirenn-grafana
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./logging/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./logging/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./logging/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - loki
+    networks:
+      - tirenn-net
+
+networks:
+  tirenn-net:
+    name: tirenn-net
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_models:
+    driver: local
+  loki_data:
+    driver: local
+  grafana_data:
+    driver: local
