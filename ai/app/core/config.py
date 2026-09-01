@@ -9,15 +9,15 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     ENVIRONMENT: str = "development"
     
-    # SOTA Multilingual & Indonesian Embedding Model (384 dimensions, ~220MB)
-    EMBEDDING_MODEL_NAME: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    # SOTA Multilingual Embedding Model via Ollama (e.g., bge-m3, paraphrase-multilingual, nomic-embed-text)
+    EMBEDDING_MODEL_NAME: str = "bge-m3"
     
     # PostgreSQL & pgvector Connection Settings
     DB_HOST: str = "postgres"
     DB_PORT: int = 5432
-    DB_USER: str = "gouser"
-    DB_PASSWORD: str = "gopassword"
-    DB_NAME: str = "gocommerce_db"
+    DB_USER: str = "postgres_user111"
+    DB_PASSWORD: str = "password123!!!"
+    DB_NAME: str = "commerce_db"
     
     # Core Backend URL
     BACKEND_API_URL: str = "http://backend:8080/api/v1"
@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # JWT Authentication Settings (Synced with Golang Backend)
     JWT_SECRET: str = "super-secret-tirenn-jwt-key-2026"
-    JWT_ISSUER: str = "gocommerce-api"
+    JWT_ISSUER: str = "commerce-api"
 
     # Redis Session History & Sliding Window Settings
     SESSION_HISTORY_LIMIT: int = 10  # Number of past messages fetched for LLM context window

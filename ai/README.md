@@ -1,6 +1,6 @@
 # 🤖 Tirenn Commerce - AI Service Microservice
 
-Autonomous Conversational AI Shopper and Vector Semantic Search engine built with **Python 3.11**, **FastAPI**, **Clean Architecture**, **SentenceTransformers**, **PostgreSQL pgvector**, and **Ollama (Qwen 2.5)**.
+Autonomous Conversational AI Shopper and Vector Semantic Search engine built with **Python 3.11**, **FastAPI**, **Clean Architecture**, **Ollama Embeddings & LLM**, **PostgreSQL pgvector**, and **Redis**.
 
 ---
 
@@ -14,7 +14,7 @@ Autonomous Conversational AI Shopper and Vector Semantic Search engine built wit
      - `add_to_cart`: Authentication-aware cart dispatching.
    - Grounding Enforcement: Strict system prompts preventing LLM hallucinations.
 2. **🔎 High-Precision Semantic & Hybrid Search**:
-   - Dense vector embeddings generated via `paraphrase-multilingual-MiniLM-L12-v2` (384 dimensions).
+   - Dense vector embeddings generated directly via **Ollama Embeddings API** (`bge-m3` / `paraphrase-multilingual`).
    - Hybrid ranking combining Vector Cosine Similarity (70%) and Trigram Text Matching (30%).
 3. **🛡️ Production Security & Performance**:
    - Redis-backed Sliding Window Rate Limiter (`X-RateLimit-*` headers).
@@ -27,7 +27,7 @@ Autonomous Conversational AI Shopper and Vector Semantic Search engine built wit
 
 - **Language**: Python 3.11
 - **Framework**: FastAPI + Uvicorn + Pydantic v2
-- **Embeddings**: SentenceTransformers (`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`)
+- **Embeddings**: Ollama (`bge-m3` / `paraphrase-multilingual`)
 - **LLM Engine**: Ollama (`qwen2.5:3b`)
 - **Database**: PostgreSQL 16 (`pgvector` HNSW indexes)
 - **Cache & Rate Limiting**: Redis 7

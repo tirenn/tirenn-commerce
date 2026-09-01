@@ -17,7 +17,7 @@ app/
 │   ├── chat.py                # ChatMessage, ChatShopperResult, ToolCall models
 │   └── product.py             # Product, ScoredProduct, ProductIndexItem models
 ├── repositories/
-│   ├── embedding_repository.py# SentenceTransformers embedding model loader & encoder (384 dim)
+│   ├── embedding_repository.py# Ollama embedding API client & dense vector encoder
 │   ├── knowledge_repository.py# PostgreSQL pgvector knowledge_documents & knowledge_chunks HNSW storage
 │   ├── llm_repository.py      # Async HTTP client for Ollama API (/api/chat)
 │   ├── product_repository.py  # PostgreSQL queries, pgvector HNSW search & category maps

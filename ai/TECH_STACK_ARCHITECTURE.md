@@ -10,7 +10,7 @@ This document outlines the AI models, vector math, rate limiting, agent architec
 | :--- | :--- | :--- |
 | **Language** | Python 3.11 | Modern typing, async/await runtime |
 | **Framework** | FastAPI 0.115+ | High-throughput asynchronous REST API |
-| **Embedding Model** | `paraphrase-multilingual-MiniLM-L12-v2` | 384 dimensions, sentence-transformers, pre-cached in container |
+| **Embedding Model** | `bge-m3` / `paraphrase-multilingual` | Multilingual dense embeddings generated via Ollama API |
 | **LLM Model** | Qwen 2.5:3b (via Ollama) | Fast local model with native function calling and ReAct tool support |
 | **Vector Database** | PostgreSQL 16 + `pgvector` | HNSW cosine distance indexing (`<=>`) for vector catalog and RAG chunks |
 | **Full-Text Lexical** | PostgreSQL 16 + `pg_trgm` | Trigram similarity for exact word and SKU match boosting |

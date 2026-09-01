@@ -64,7 +64,7 @@ func NewClient(baseURL, chatModel, embeddingModel string) *Client {
 		chatModel = "qwen2.5:3b"
 	}
 	if embeddingModel == "" {
-		embeddingModel = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+		embeddingModel = "bge-m3"
 	}
 
 	return &Client{

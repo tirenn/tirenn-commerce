@@ -10,7 +10,7 @@ services:
   # 1. PostgreSQL Database with pgvector Extension
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: tirenn-postgres
+    container_name: postgres
     restart: always
     env_file:
       - .env
@@ -19,7 +19,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -29,7 +29,7 @@ services:
   # 2. Redis In-Memory Cache (Distributed Rate Limiting)
   redis:
     image: redis:7-alpine
-    container_name: tirenn-redis
+    container_name: redis
     restart: always
     env_file:
       - .env
@@ -38,7 +38,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -48,7 +48,7 @@ services:
   # 3. Ollama LLM Container (Qwen 2.5 for AI Shopper)
   ollama:
     image: ollama/ollama:latest
-    container_name: tirenn-ollama
+    container_name: ollama
     restart: always
     env_file:
       - .env
@@ -69,7 +69,7 @@ services:
   # 3.1. Ollama Automatic Model Provisioner (Pulls models on first boot / deployment)
   ollama-init:
     image: curlimages/curl:latest
-    container_name: tirenn-ollama-init
+    container_name: ollama-init
     restart: "no"
     env_file:
       - .env
@@ -99,7 +99,7 @@ services:
   # 4. Centralized Log Storage Engine (Grafana Loki)
   loki:
     image: grafana/loki:3.0.0
-    container_name: tirenn-loki
+    container_name: loki
     restart: always
     env_file:
       - .env
@@ -115,7 +115,7 @@ services:
   # 5. Log Collector & Docker Shipper (Grafana Promtail)
   promtail:
     image: grafana/promtail:3.0.0
-    container_name: tirenn-promtail
+    container_name: promtail
     restart: always
     command: -config.file=/etc/promtail/config.yml
     volumes:
@@ -129,7 +129,7 @@ services:
   # 6. Unified Log Visualization Dashboard (Grafana)
   grafana:
     image: grafana/grafana:latest
-    container_name: tirenn-grafana
+    container_name: grafana
     restart: always
     env_file:
       - .env
