@@ -72,7 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Search Bar - Only for Storefront */}
+          {/* Search Bar - Only for Storefront (Desktop/Tablet) */}
           {!isAdmin ? (
             <div className="flex-1 max-w-md hidden sm:block">
               <div className="relative">
@@ -98,12 +98,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </div>
           ) : (
-            /* Admin Navigation Tabs in Header */
-            <div className="flex-1 flex items-center gap-1.5 ml-4">
+            /* Admin Navigation Tabs in Header - Desktop view */
+            <div className="flex-1 hidden md:flex items-center gap-1.5 ml-4">
               <button
                 data-testid="admin-tab-dashboard"
                 onClick={() => onSelectView('admin-dashboard')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                   currentView === 'admin-dashboard' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
@@ -112,7 +112,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 data-testid="admin-tab-products"
                 onClick={() => onSelectView('admin-products')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                   currentView === 'admin-products' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
@@ -121,7 +121,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 data-testid="admin-tab-orders"
                 onClick={() => onSelectView('admin-orders')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                   currentView === 'admin-orders' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
@@ -130,7 +130,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 data-testid="admin-tab-customers"
                 onClick={() => onSelectView('admin-customers')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                   currentView === 'admin-customers' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
@@ -139,17 +139,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 data-testid="admin-tab-knowledge"
                 onClick={() => onSelectView('admin-knowledge')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 shrink-0 ${
                   currentView === 'admin-knowledge' ? 'bg-purple-700 text-white' : 'text-slate-600 hover:bg-purple-50 hover:text-purple-700'
                 }`}
               >
                 <span>📚</span>
-                <span>{i18n.language === 'en' ? 'SOP & AI Knowledge' : 'SOP & Pengetahuan'}</span>
+                <span>{i18n.language === 'en' ? 'SOP & Knowledge' : 'SOP & Pengetahuan'}</span>
               </button>
               <button
                 data-testid="admin-tab-ai-copilot"
                 onClick={onOpenAdminAI}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white shadow-xs"
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white shadow-xs shrink-0"
               >
                 <span>⚡</span>
                 <span>{t('admin_copilot.btn_open')}</span>
@@ -158,19 +158,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Right Action Items */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             
             {/* Language & Currency Switcher Toggle */}
             <button
               data-testid="lang-currency-toggle"
               onClick={toggleLanguage}
               title="Switch Language & Currency (IDR / USD)"
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200"
             >
-              <span className="text-sm">{i18n.language === 'en' ? '🇺🇸' : '🇮🇩'}</span>
-              <span className="uppercase">{i18n.language}</span>
+              <span className="text-xs sm:text-sm">{i18n.language === 'en' ? '🇺🇸' : '🇮🇩'}</span>
+              <span className="uppercase text-[11px] sm:text-xs">{i18n.language}</span>
               <span className="text-slate-400">|</span>
-              <span className="text-blue-600 font-bold">{currency === 'USD' ? '$' : 'Rp'}</span>
+              <span className="text-blue-600 font-bold text-[11px] sm:text-xs">{currency === 'USD' ? '$' : 'Rp'}</span>
             </button>
 
             {!isAdmin ? (
@@ -178,7 +178,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   data-testid="nav-store"
                   onClick={() => onSelectView('storefront')}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                  className={`hidden sm:block px-3 py-1.5 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
                     currentView === 'storefront' ? 'text-blue-600 bg-blue-50' : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
@@ -189,7 +189,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     data-testid="nav-orders"
                     onClick={() => onSelectView('my-orders')}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                    className={`hidden sm:block px-3 py-1.5 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
                       currentView === 'my-orders' ? 'text-blue-600 bg-blue-50' : 'text-slate-700 hover:bg-slate-100'
                     }`}
                   >
@@ -201,11 +201,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   data-testid="cart-button"
                   onClick={onOpenCart}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm py-1.5 px-3 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs sm:text-sm py-1.5 px-2.5 sm:px-3 rounded-lg flex items-center gap-1 sm:gap-1.5 cursor-pointer shadow-xs transition-colors"
                 >
-                  <span>{t('nav.cart')}</span>
+                  <span>🛒</span>
+                  <span className="hidden xs:inline">{t('nav.cart')}</span>
                   {cartCount > 0 && (
-                    <span data-testid="cart-badge" className="bg-white text-blue-600 text-xs px-1.5 py-0.2 rounded-full font-bold">
+                    <span data-testid="cart-badge" className="bg-white text-blue-600 text-[10px] sm:text-xs px-1.5 py-0.2 rounded-full font-bold">
                       {cartCount}
                     </span>
                   )}
@@ -215,25 +216,27 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Auth Menu */}
             {currentUser ? (
-              <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
-                  isAdmin ? 'bg-purple-100 text-purple-800' : 'text-slate-700'
+              <div className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-2 border-l border-slate-200">
+                <span className={`text-[11px] sm:text-xs font-semibold px-1.5 sm:px-2 py-0.5 rounded-md truncate max-w-[90px] sm:max-w-[140px] ${
+                  isAdmin ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'
                 }`}>
                   {currentUser.name} {isAdmin && '👑'}
                 </span>
                 <button
                   data-testid="logout-button"
                   onClick={handleLogout}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-1.5 px-2.5 rounded-lg transition-colors cursor-pointer"
+                  title={t('nav.logout')}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium py-1 sm:py-1.5 px-2 sm:px-2.5 rounded-lg transition-colors cursor-pointer"
                 >
-                  {t('nav.logout')}
+                  <span className="hidden sm:inline">{t('nav.logout')}</span>
+                  <span className="sm:hidden">🚪</span>
                 </button>
               </div>
             ) : (
               <button
                 data-testid="login-button"
                 onClick={onOpenAuth}
-                className="border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
+                className="border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-medium py-1.5 px-2.5 sm:px-3 rounded-lg transition-colors cursor-pointer"
               >
                 {t('nav.login')}
               </button>
@@ -241,16 +244,84 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Mobile Search */}
+        {/* Mobile Search Bar (Storefront) */}
         {!isAdmin && (
           <div className="pb-3 sm:hidden">
-            <input
-              type="text"
-              className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-900 outline-none"
-              placeholder={t('nav.search_placeholder')}
-              value={searchTerm}
-              onChange={(e) => onSearchChange(e.target.value)}
-            />
+            <div className="relative">
+              <input
+                type="text"
+                data-testid="search-input-mobile"
+                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-7 py-2 text-slate-900 outline-none focus:bg-white focus:border-blue-600 transition-all"
+                placeholder={t('nav.search_placeholder')}
+                value={searchTerm}
+                onChange={(e) => onSearchChange(e.target.value)}
+              />
+              <svg className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {searchTerm && (
+                <button
+                  onClick={() => onSearchChange('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Admin Mobile Horizontal Scrollable Tab Bar */}
+        {isAdmin && (
+          <div className="pb-2.5 md:hidden overflow-x-auto flex items-center gap-1.5 scrollbar-none">
+            <button
+              onClick={() => onSelectView('admin-dashboard')}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                currentView === 'admin-dashboard' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => onSelectView('admin-products')}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                currentView === 'admin-products' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              {t('admin.manage_products')}
+            </button>
+            <button
+              onClick={() => onSelectView('admin-orders')}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                currentView === 'admin-orders' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              {t('orders.title')}
+            </button>
+            <button
+              onClick={() => onSelectView('admin-customers')}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                currentView === 'admin-customers' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'
+              }`}
+            >
+              Customers
+            </button>
+            <button
+              onClick={() => onSelectView('admin-knowledge')}
+              className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer shrink-0 flex items-center gap-1 ${
+                currentView === 'admin-knowledge' ? 'bg-purple-700 text-white' : 'bg-purple-50 text-purple-700 border border-purple-200'
+              }`}
+            >
+              <span>📚</span>
+              <span>SOP</span>
+            </button>
+            <button
+              onClick={onOpenAdminAI}
+              className="px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer shrink-0 flex items-center gap-1 bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-2xs"
+            >
+              <span>⚡</span>
+              <span>AI</span>
+            </button>
           </div>
         )}
       </div>

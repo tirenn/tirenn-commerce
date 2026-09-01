@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
 from app.core.config import settings
+from app.core.logging_config import setup_logging, DistributedTracingMiddleware, get_current_request_id, get_current_trace_id, get_current_span_id
 from app.core.security import (
     SecurityHeadersMiddleware,
     RequestBodySizeLimitMiddleware,
@@ -29,10 +30,8 @@ from app.handlers.catalog_handler import get_catalog_router
 from app.handlers.knowledge_handler import get_knowledge_router
 from app.handlers.recommendation_handler import get_recommendation_router
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
+# Initialize unified structured logging with Request ID
+setup_logging()
 logger = logging.getLogger("ai-service.main")
 
 # ==============================================================================
@@ -77,8 +76,9 @@ async def _bg_sync():
     """Initial vector indexing sync on application boot"""
     try:
         await asyncio.sleep(1.5)
+        headers = {"X-Request-ID": get_current_request_id()}
         async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"{settings.BACKEND_API_URL}/products?limit=200")
+            resp = await client.get(f"{settings.BACKEND_API_URL}/products?limit=200", headers=headers)
             if resp.status_code == 200:
                 logger.info("Backend detected. Triggering initial vector indexing in background...")
                 await sync_usecase.sync_from_backend()
@@ -105,7 +105,8 @@ allowed_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",")
 if not allowed_origins:
     allowed_origins = ["*"]
 
-# Middleware Stack
+# Middleware Stack (Executed in reverse order of registration)
+app.add_middleware(DistributedTracingMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(RequestBodySizeLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -115,6 +116,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Trace-ID", "X-Span-ID", "X-Request-ID", "X-Response-Time-Ms", "X-Correlation-ID"],
 )
 
 # System Healthcheck
@@ -133,6 +135,67 @@ app.include_router(chat_router, prefix="/api/v1")
 app.include_router(catalog_router, prefix="/api/v1")
 app.include_router(knowledge_router, prefix="/api/v1")
 app.include_router(recommendation_router, prefix="/api/v1")
+
+# ==============================================================================
+# Global Exception Handlers (All Errors Logged with Request ID & Stack Trace)
+# ==============================================================================
+
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from fastapi import HTTPException, Request
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    req_id = get_current_request_id()
+    logger.warning(
+        f"⚠️ Validation Error on {request.method} {request.url.path} | "
+        f"errors={exc.errors()}"
+    )
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "error": "Validation Error",
+            "details": exc.errors(),
+            "request_id": req_id
+        },
+        headers={"X-Request-ID": req_id}
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    req_id = get_current_request_id()
+    if exc.status_code >= 500:
+        logger.error(f"🔥 HTTP {exc.status_code} on {request.method} {request.url.path}: {exc.detail}")
+    else:
+        logger.warning(f"⚠️ HTTP {exc.status_code} on {request.method} {request.url.path}: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": exc.detail,
+            "request_id": req_id
+        },
+        headers={"X-Request-ID": req_id}
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    req_id = get_current_request_id()
+    logger.error(
+        f"💥 [500 INTERNAL SERVER ERROR] Unhandled exception on {request.method} {request.url.path}: {exc}",
+        exc_info=True
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": "Internal Server Error",
+            "message": str(exc),
+            "request_id": req_id
+        },
+        headers={"X-Request-ID": req_id}
+    )
 
 if __name__ == "__main__":
     import uvicorn

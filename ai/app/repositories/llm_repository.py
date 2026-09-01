@@ -1,7 +1,10 @@
+import time
+import json
 import logging
 from typing import List, Dict, Any, Optional
 import httpx
 from app.core.config import settings
+from app.core.logging_config import get_tracing_headers
 
 logger = logging.getLogger("ai-service.repository.llm")
 
@@ -41,29 +44,63 @@ class LLMRepository:
         messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         temperature: float = 0.0,
-        timeout: float = 120.0
+        timeout: Optional[float] = None
     ) -> Dict[str, Any]:
-        """Send chat messages and tool definitions to Ollama and return assistant message"""
+        """Send chat messages and tool definitions to Ollama, log model input & response, and return assistant message"""
+        effective_timeout = timeout if timeout is not None else settings.LLM_TIMEOUT
+        tool_names = [t.get("function", {}).get("name") for t in (tools or [])]
+
+        # 1. Log Input to Model
+        latest_msg = messages[-1] if messages else {}
+        logger.info(
+            f"🚀 [LLM_INPUT] Model: '{self.model_name}' | Temp: {temperature} | "
+            f"MsgCount: {len(messages)} | ToolsAvailable: {tool_names} | "
+            f"LatestTurn: {latest_msg.get('role')} -> {str(latest_msg.get('content'))[:180]}"
+        )
+
         payload: Dict[str, Any] = {
             "model": self.model_name,
             "messages": messages,
             "stream": False,
+            "keep_alive": settings.LLM_KEEP_ALIVE,
             "options": {
-                "temperature": temperature
+                "temperature": temperature,
+                "num_predict": settings.LLM_NUM_PREDICT,
+                "num_ctx": settings.LLM_NUM_CTX
             }
         }
         if tools:
             payload["tools"] = tools
 
-        client_timeout = httpx.Timeout(timeout, connect=15.0, read=timeout, write=15.0)
+        start_time = time.perf_counter()
+        client_timeout = httpx.Timeout(effective_timeout, connect=15.0, read=effective_timeout, write=15.0)
+        tracing_headers = get_tracing_headers()
+
         async with httpx.AsyncClient(timeout=client_timeout) as client:
-            resp = await client.post(f"{self.base_url}/api/chat", json=payload)
+            resp = await client.post(f"{self.base_url}/api/chat", json=payload, headers=tracing_headers)
             if resp.status_code == 404:
-                # If model was missing, attempt auto-pull and retry once
                 logger.warning(f"Ollama returned 404 for model '{self.model_name}'. Attempting auto-pull...")
                 await self.ensure_model_available()
-                resp = await client.post(f"{self.base_url}/api/chat", json=payload)
+                resp = await client.post(f"{self.base_url}/api/chat", json=payload, headers=tracing_headers)
 
             resp.raise_for_status()
             data = resp.json()
-            return data.get("message", {})
+
+        duration_ms = (time.perf_counter() - start_time) * 1000.0
+        assistant_msg = data.get("message", {})
+        tool_calls = assistant_msg.get("tool_calls", [])
+        content = assistant_msg.get("content", "")
+
+        # 2. Log Response from Model
+        tool_call_summaries = [
+            f"{tc.get('function', {}).get('name')}({json.dumps(tc.get('function', {}).get('arguments', {}), ensure_ascii=False, default=str)})"
+            for tc in tool_calls
+        ]
+        logger.info(
+            f"🤖 [LLM_RESPONSE] Duration: {duration_ms:.2f}ms | "
+            f"ToolCallsCount: {len(tool_calls)} | "
+            f"Calls: {tool_call_summaries if tool_calls else 'None'} | "
+            f"ContentPreview: {content[:200] if content else '(tool_calling_turn)'}"
+        )
+
+        return assistant_msg

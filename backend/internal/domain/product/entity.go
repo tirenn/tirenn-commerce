@@ -55,7 +55,7 @@ type Product struct {
 	IsActive          bool             `gorm:"default:true;not null;index" json:"is_active"`
 	Badge             string           `gorm:"size:50" json:"badge"`
 	Rating            float64          `gorm:"type:decimal(3,2);default:5.00" json:"rating"`
-	Embedding         pgvector.Vector  `gorm:"type:vector(1024)" json:"-"`
+	Embedding         *pgvector.Vector `gorm:"type:vector(1024)" json:"-"`
 	CreatedAt         time.Time        `json:"created_at"`
 	UpdatedAt         time.Time        `json:"updated_at"`
 }

@@ -80,7 +80,7 @@ class AdminUseCase:
             llm_repo=self.llm_repo,
             tools=self.tools,
             system_prompt=ADMIN_SYSTEM_PROMPT,
-            max_iterations=5
+            max_iterations=settings.MAX_AGENT_ITERATIONS
         )
 
     async def chat(

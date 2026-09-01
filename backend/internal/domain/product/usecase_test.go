@@ -62,6 +62,15 @@ func (m *mockProductRepo) FindBySlug(ctx context.Context, slug string) (*Product
 	return nil, errors.New("record not found")
 }
 
+func (m *mockProductRepo) FindBySKU(ctx context.Context, sku string) (*Product, error) {
+	for _, p := range m.products {
+		if p.SKU == sku {
+			return p, nil
+		}
+	}
+	return nil, errors.New("record not found")
+}
+
 func (m *mockProductRepo) Update(ctx context.Context, p *Product) error {
 	m.products[p.ID] = p
 	return nil
@@ -86,6 +95,19 @@ func (m *mockProductRepo) List(ctx context.Context, filter ProductFilterQuery) (
 		list = append(list, *p)
 	}
 	return list, int64(len(list)), nil
+}
+
+func (m *mockProductRepo) GetLowStock(ctx context.Context, limit int) ([]Product, error) {
+	var list []Product
+	for _, p := range m.products {
+		if p.StockQuantity <= p.LowStockThreshold {
+			list = append(list, *p)
+			if len(list) >= limit {
+				break
+			}
+		}
+	}
+	return list, nil
 }
 
 func (m *mockProductRepo) AdjustStock(ctx context.Context, log *StockAdjustmentLog) error {

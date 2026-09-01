@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tirenn/commerce/backend/internal/domain"
+	"github.com/tirenn/commerce/backend/internal/logger"
 )
 
 // PaginationMeta standard structure for paginated lists
@@ -54,11 +55,19 @@ func Created(c *gin.Context, message string, data interface{}) {
 	Success(c, http.StatusCreated, message, data)
 }
 
-// ErrorResponse sends a formatted error response with explicit status code
+// ErrorResponse sends a formatted error response with explicit status code and logs the error
 func ErrorResponse(c *gin.Context, statusCode int, message string, err error) {
 	errStr := ""
 	if err != nil {
 		errStr = err.Error()
+		_ = c.Error(err)
+		
+		// Log structured error
+		if statusCode >= 500 {
+			logger.Error(c.Request.Context(), "http.error", message, err)
+		} else {
+			logger.Warn(c.Request.Context(), "http.warn", message, err)
+		}
 	}
 	c.JSON(statusCode, APIResponse{
 		Success: false,

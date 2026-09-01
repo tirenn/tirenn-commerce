@@ -31,6 +31,9 @@
     "sort_name_asc": "Name: A to Z",
     "price_range": "Price Range",
     "in_stock_only": "In Stock Only",
+    "semantic_search": "AI Semantic Search",
+    "semantic_search_on_hint": "Using Python AI Service (pgvector embeddings)",
+    "semantic_search_off_hint": "Using Go Backend Core Service (SQL search)",
     "reset": "Reset Filters",
     "results_count": "Showing {{count}} products"
   },
@@ -221,26 +224,23 @@
     "idr": "IDR (Rp)"
   },
   "categories": {
-    "elektronik-gadget": "Electronics & Gadgets",
-    "fashion-pria": "Men's Fashion",
-    "fashion-wanita": "Women's Fashion",
-    "makanan-minuman": "Food & Beverage",
-    "kecantikan-perawatan": "Beauty & Personal Care"
+    "smartphones": "Smartphones & Mobile Phones",
+    "tablets": "Tablets & iPads",
+    "smartwatches": "Smartwatches & Wearables",
+    "power-banks": "Power Banks & Fast Charging",
+    "screen-protectors": "Screen Protectors & Tempered Glass",
+    "audio-earbuds": "Audio & TWS Earbuds",
+    "accessories-cases": "Accessories & Cases"
   },
   "subcategories": {
-    "audio-headphone": "Audio & Headphones",
-    "smartwatch-wearables": "Smartwatch & Wearables",
-    "aksesoris-komputer-gaming": "Computer & Gaming Accessories",
-    "pakaian-kaos-pria": "Men's Tops & Shirts",
-    "celana-jeans-pria": "Men's Pants & Jeans",
-    "sepatu-sandal-pria": "Men's Shoes & Sandals",
-    "aksesoris-dompet-pria": "Men's Wallets & Accessories",
-    "pakaian-dress-wanita": "Women's Tops & Dresses",
-    "tas-dompet-wanita": "Women's Bags & Wallets",
-    "sepatu-sandal-wanita": "Women's Shoes & Sandals",
-    "kopi-teh-nusantara": "Coffee & Specialty Teas",
-    "camilan-snack-sehat": "Healthy Snacks & Treats",
-    "skincare-perawatan-wajah": "Skincare & Facial Care",
-    "parfum-body-care": "Fragrance & Body Care"
+    "flagship-smartphones": "Flagship Smartphones",
+    "mid-range-smartphones": "Mid-Range Smartphones",
+    "foldable-gaming-smartphones": "Foldable & Gaming Smartphones",
+    "pro-entertainment-tablets": "Pro & Entertainment Tablets",
+    "smartwatches-fitness": "Smartwatches & Fitness Trackers",
+    "fast-charge-power-banks": "Fast Charge & Magnetic Power Banks",
+    "tempered-glass-privacy": "Tempered Glass & Privacy Protectors",
+    "anc-earbuds-headphones": "Noise-Canceling Earbuds & Headphones",
+    "cases-chargers": "Protective Cases & GaN Chargers"
   }
 }

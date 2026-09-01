@@ -310,20 +310,41 @@ class ProductRepository:
             logger.error(f"Error fetching categories from database: {e}", exc_info=True)
             return {}
 
-    def get_sub_categories_map(self) -> Dict[int, str]:
-        """Fetch all sub-categories dynamically from PostgreSQL database"""
-        sql = "SELECT id, name FROM sub_categories ORDER BY id ASC;"
+    def get_taxonomy_prompt_text(self) -> str:
+        """Dynamically fetch all categories & subcategories from PostgreSQL and format for LLM context"""
+        sql = """
+            SELECT 
+                c.id AS category_id,
+                c.name AS category_name,
+                COALESCE(
+                    json_agg(
+                        json_build_object('id', sc.id, 'name', sc.name)
+                        ORDER BY sc.id
+                    ) FILTER (WHERE sc.id IS NOT NULL),
+                    '[]'
+                ) AS sub_categories
+            FROM categories c
+            LEFT JOIN sub_categories sc ON sc.category_id = c.id
+            GROUP BY c.id, c.name
+            ORDER BY c.id ASC;
+        """
         try:
             with self._get_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute(sql)
                     rows = cur.fetchall()
-                    if rows:
-                        return {r["id"]: r["name"] for r in rows}
-            return {}
+                    lines = []
+                    for r in rows:
+                        subcats = r.get("sub_categories", [])
+                        if isinstance(subcats, str):
+                            import json
+                            subcats = json.loads(subcats)
+                        sub_str = ", ".join(f"sub_category_id={s['id']}: '{s['name']}'" for s in subcats)
+                        lines.append(f"- category_id={r['category_id']}: '{r['category_name']}'" + (f" (Subcategories: {sub_str})" if sub_str else ""))
+                    return "\n".join(lines)
         except Exception as e:
-            logger.error(f"Error fetching sub-categories from database: {e}", exc_info=True)
-            return {}
+            logger.error(f"Error fetching dynamic taxonomy from database: {e}", exc_info=True)
+            return ""
 
     def get_low_stock_products(self, threshold: int = 10, limit: int = 20) -> List[Dict[str, Any]]:
         """Fetch products with stock quantity less than or equal to threshold"""

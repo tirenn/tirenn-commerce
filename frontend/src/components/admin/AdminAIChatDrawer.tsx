@@ -234,8 +234,8 @@ export const AdminAIChatDrawer: React.FC<AdminAIChatDrawerProps> = ({ isOpen, on
       />
 
       {/* Slide-over Drawer Panel */}
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-md sm:max-w-lg bg-white shadow-2xl flex flex-col border-l border-slate-200">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10 w-full sm:w-auto">
+        <div className="w-full sm:w-screen sm:max-w-md md:max-w-lg bg-white shadow-2xl flex flex-col border-l border-slate-200 h-full">
           
           {/* Header */}
           <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 text-white flex items-center justify-between border-b border-purple-800/40 shrink-0">

@@ -325,7 +325,7 @@ func (r *repository) GetRecommendations(ctx context.Context, productID uint, lim
 
 	var products []Product
 
-	if len(target.Embedding.Slice()) > 0 {
+	if target.Embedding != nil && len(target.Embedding.Slice()) > 0 {
 		// Vector similarity + category affinity soft-boost executed directly in PostgreSQL pgvector
 		err := r.db.WithContext(ctx).
 			Preload("Category").
@@ -341,7 +341,7 @@ func (r *repository) GetRecommendations(ctx context.Context, productID uint, lim
 						ELSE (p.embedding <=> ?)
 					END ASC
 				LIMIT ?
-			`, productID, target.SubCategoryID, target.Embedding, target.CategoryID, target.Embedding, target.Embedding, limit).
+			`, productID, target.SubCategoryID, *target.Embedding, target.CategoryID, *target.Embedding, *target.Embedding, limit).
 			Find(&products).Error
 
 		if err == nil && len(products) > 0 {

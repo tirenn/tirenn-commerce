@@ -106,23 +106,23 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
         data-testid="pdp-modal"
-        className="bg-white rounded-2xl w-full max-w-3xl p-6 sm:p-8 relative max-h-[90vh] overflow-y-auto shadow-xl border border-slate-200 animate-modal"
+        className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-3xl p-4 sm:p-8 relative max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 animate-modal"
       >
         {/* Close Button */}
         <button
           data-testid="pdp-close"
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center cursor-pointer transition-colors z-10"
+          className="absolute top-3 sm:top-4 right-3 sm:right-4 text-slate-400 hover:text-slate-700 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center cursor-pointer transition-colors z-10"
         >
           ✕
         </button>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 items-start pt-2 sm:pt-0">
           {/* Product Image */}
-          <div className="bg-slate-50 border border-slate-100 rounded-xl h-64 flex items-center justify-center p-4 overflow-hidden">
+          <div className="bg-slate-50 border border-slate-100 rounded-xl h-52 sm:h-64 flex items-center justify-center p-3 sm:p-4 overflow-hidden">
             <img
               src={currentProduct.image_url}
               alt={currentProduct.name}

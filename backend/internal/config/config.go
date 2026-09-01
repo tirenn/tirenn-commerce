@@ -41,6 +41,7 @@ type RedisConfig struct {
 	Port                   string `mapstructure:"REDIS_PORT"`
 	Password               string `mapstructure:"REDIS_PASSWORD"`
 	DB                     int    `mapstructure:"REDIS_DB"`
+	RateLimitEnabled       bool   `mapstructure:"RATE_LIMIT_ENABLED"`
 	RateLimitReqPerMinute  int    `mapstructure:"RATE_LIMIT_REQUESTS_PER_MINUTE"`
 	RateLimitWindowSeconds int    `mapstructure:"RATE_LIMIT_WINDOW_SECONDS"`
 }
@@ -57,12 +58,10 @@ type JWTConfig struct {
 	Issuer      string `mapstructure:"JWT_ISSUER"`
 }
 
-// AIConfig stores AI reasoning, temperatures, thresholds, and hybrid search weights
+// AIConfig stores AI reasoning thresholds and hybrid search weights
 type AIConfig struct {
-	OllamaURL                   string  `mapstructure:"OLLAMA_BASE_URL"`
-	OllamaEmbeddingModel        string  `mapstructure:"OLLAMA_EMBED_MODEL"`
-	LLMToolTemperature          float64 `mapstructure:"LLM_TOOL_TEMPERATURE"`
-	LLMChatTemperature          float64 `mapstructure:"LLM_CHAT_TEMPERATURE"`
+	AIServiceURL                string  `mapstructure:"AI_SERVICE_URL"`
+	InternalAPIKey              string  `mapstructure:"INTERNAL_API_KEY"`
 	DefaultSearchScoreThreshold float64 `mapstructure:"DEFAULT_SEARCH_SCORE_THRESHOLD"`
 	ChatSearchScoreThreshold    float64 `mapstructure:"CHAT_SEARCH_SCORE_THRESHOLD"`
 	ChatSearchFallbackThreshold float64 `mapstructure:"CHAT_SEARCH_FALLBACK_THRESHOLD"`
@@ -85,8 +84,6 @@ type Config struct {
 	Port                   string
 	Environment            string
 	AIServiceURL           string
-	OllamaURL              string
-	OllamaEmbeddingModel   string
 	HybridVectorWeight     float64
 	ChatSearchLimit        int
 	DBHost                 string
@@ -98,6 +95,7 @@ type Config struct {
 	RedisPort              string
 	RedisPassword          string
 	RedisDB                int
+	RateLimitEnabled       bool
 	RateLimitReqPerMinute  int
 	RateLimitWindowSeconds int
 	JWTSecret              string
@@ -113,8 +111,6 @@ func LoadConfig(paths ...string) *Config {
 	v.SetDefault("PORT", "8080")
 	v.SetDefault("ENVIRONMENT", "development")
 	v.SetDefault("AI_SERVICE_URL", "http://localhost:8000")
-	v.SetDefault("OLLAMA_BASE_URL", "http://ollama:11434")
-	v.SetDefault("OLLAMA_EMBED_MODEL", "paraphrase-multilingual")
 
 	// AI LLM & Hybrid Search Defaults
 	v.SetDefault("DEFAULT_SEARCH_SCORE_THRESHOLD", 0.45)
@@ -136,7 +132,8 @@ func LoadConfig(paths ...string) *Config {
 	v.SetDefault("REDIS_PORT", "6379")
 	v.SetDefault("REDIS_PASSWORD", "")
 	v.SetDefault("REDIS_DB", 0)
-	v.SetDefault("RATE_LIMIT_REQUESTS_PER_MINUTE", 120)
+	v.SetDefault("RATE_LIMIT_ENABLED", true)
+	v.SetDefault("RATE_LIMIT_REQUESTS_PER_MINUTE", 600)
 	v.SetDefault("RATE_LIMIT_WINDOW_SECONDS", 60)
 	v.SetDefault("JWT_SECRET", "super-secret-tirenn-jwt-key-2026")
 	v.SetDefault("JWT_EXPIRE_HOURS", 24)
@@ -187,6 +184,7 @@ func LoadConfig(paths ...string) *Config {
 	cfg.RedisPort = v.GetString("REDIS_PORT")
 	cfg.RedisPassword = v.GetString("REDIS_PASSWORD")
 	cfg.RedisDB = v.GetInt("REDIS_DB")
+	cfg.RateLimitEnabled = v.GetBool("RATE_LIMIT_ENABLED")
 	cfg.RateLimitReqPerMinute = v.GetInt("RATE_LIMIT_REQUESTS_PER_MINUTE")
 	cfg.RateLimitWindowSeconds = v.GetInt("RATE_LIMIT_WINDOW_SECONDS")
 	cfg.JWTSecret = v.GetString("JWT_SECRET")
@@ -206,13 +204,15 @@ func LoadConfig(paths ...string) *Config {
 	cfg.Redis.Port = cfg.RedisPort
 	cfg.Redis.Password = cfg.RedisPassword
 	cfg.Redis.DB = cfg.RedisDB
+	cfg.Redis.RateLimitEnabled = cfg.RateLimitEnabled
 	cfg.Redis.RateLimitReqPerMinute = cfg.RateLimitReqPerMinute
 	cfg.Redis.RateLimitWindowSeconds = cfg.RateLimitWindowSeconds
 	cfg.JWT.Secret = cfg.JWTSecret
 	cfg.JWT.ExpireHours = cfg.JWTExpireHours
 	cfg.JWT.Issuer = v.GetString("JWT_ISSUER")
 
-	cfg.AI.OllamaEmbeddingModel = cfg.OllamaEmbeddingModel
+	cfg.AI.AIServiceURL = cfg.AIServiceURL
+	cfg.AI.InternalAPIKey = cfg.InternalAPIKey
 	cfg.AI.HybridVectorWeight = cfg.HybridVectorWeight
 	cfg.AI.ChatSearchLimit = cfg.ChatSearchLimit
 

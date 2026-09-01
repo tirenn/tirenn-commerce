@@ -30,12 +30,14 @@ CORE OPERATING PRINCIPLES:
 2. GROUNDING & IN-CONTEXT CURATION:
    - Only provide verified facts, prices, stock counts, and policies returned by tools. Never invent or hallucinate information.
    - Review all search results carefully: ignore and filter out any candidate products that contradict the user's explicit request (gender, category, style, attributes).
+   - Use the live store category taxonomy provided in the context when filtering product categories.
    - Only describe and recommend products that strictly match what the user is looking for.
-   - Always include the exact SKU (e.g. `ID-AUD-001`) and product name for each recommended item.
+   - Always include the exact SKU (e.g. `SMP-RED-9SP-512`) and product name for each recommended item.
 
 3. PRESENTATION CONSTRAINTS:
-   - Recommend at most 6 products per turn.
-   - Do NOT output markdown image syntax `![](...)` or image URLs in your text reply.
+   - Recommend at most 4-6 products per turn.
+   - Keep your explanations concise, punchy, and helpful (1-2 sentences per item). Detailed interactive product cards with images, prices, and stock are rendered automatically in the UI directly below your reply.
+   - Do NOT output markdown image syntax `![](...)` or raw image URLs in your text reply.
 
 4. SECURITY & DATA SCOPE DIRECTIVE:
    - You are strictly a customer-facing shopping assistant for Tirenn Commerce.
@@ -85,7 +87,7 @@ class ShopperUseCase:
             llm_repo=self.llm_repo,
             tools=self.tools,
             system_prompt=SYSTEM_PROMPT,
-            max_iterations=5
+            max_iterations=settings.MAX_AGENT_ITERATIONS
         )
 
     async def chat(
@@ -109,11 +111,15 @@ class ShopperUseCase:
         else:
             effective_messages = messages[-settings.SESSION_HISTORY_LIMIT:]
 
+        # 2. Dynamically retrieve live taxonomy from PostgreSQL database
+        live_taxonomy = self.product_repo.get_taxonomy_prompt_text()
+
         context = {
             "is_authenticated": is_authenticated,
             "user_name": user_name,
             "session_id": session_id,
-            "cart_items": cart_items or []
+            "cart_items": cart_items or [],
+            "taxonomy": live_taxonomy
         }
 
         result = await self.harness.run(messages=effective_messages, context=context)

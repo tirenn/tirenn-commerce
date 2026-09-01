@@ -4,7 +4,7 @@
 Tirenn Commerce Real-Time AI Product Recommendation is composed of four clean layers:
 1. **Python AI Engine (`tirenn-ai-service`)**:
    - Computes high-performance vector-similarity and cross-category recommendations.
-   - Leverages `vector(384)` embeddings in PostgreSQL with HNSW cosine distance indexing (`products_embedding_hnsw_idx`).
+   - Leverages `vector(1024)` embeddings in PostgreSQL with HNSW cosine distance indexing (`idx_products_embedding_hnsw`).
    - Implements Similar Items (cosine similarity + category affinity + price corridor) and Frequently Bought Together / Cross-Category co-occurrence with fallback.
 2. **Go Backend Core (`tirenn-backend`)**:
    - Exposes dedicated REST endpoint `GET /api/v1/products/:id/recommendations`.
@@ -122,7 +122,7 @@ Storefront (React 19)
   - `app/main.py`: Dependency injection wiring
   - `tests/test_recommendations.py`: Pytest suite
 - `tirenn-backend/`:
-  - `internal/domain/product/ai_client.go`: AI client recommendation method
+  - `internal/client/ai/client.go`: AI client recommendation and semantic search methods
   - `internal/domain/product/repository.go`: Top-sellers and fallback queries
   - `internal/domain/product/usecase.go`: Recommendation usecase with Redis caching and fallback
   - `internal/domain/product/handler.go`: HTTP handler `GetRecommendations`

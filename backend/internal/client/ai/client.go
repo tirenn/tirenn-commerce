@@ -1,4 +1,4 @@
-package product
+package ai
 
 import (
 	"bytes"
@@ -7,25 +7,29 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/tirenn/commerce/backend/internal/domain/product"
+	"github.com/tirenn/commerce/backend/internal/logger"
 )
 
-type AIClient interface {
+type Client interface {
 	SearchSemantic(ctx context.Context, query string, categoryID uint, limit int) ([]uint, error)
-	SyncProducts(ctx context.Context, products []Product) error
+	SyncProducts(ctx context.Context, products []product.Product) error
+	GetRecommendations(ctx context.Context, productID uint, limit int) ([]uint, error)
 }
 
-type aiClient struct {
+type client struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
 }
 
-func NewAIClient(baseURL string, apiKey string) AIClient {
-	return &aiClient{
+func NewClient(baseURL string, apiKey string) Client {
+	return &client{
 		baseURL: baseURL,
 		apiKey:  apiKey,
 		httpClient: &http.Client{
-			Timeout: 4 * time.Second,
+			Timeout: 5 * time.Second,
 		},
 	}
 }
@@ -46,7 +50,7 @@ type semanticSearchResp struct {
 	Data    []scoredItem `json:"data"`
 }
 
-func (c *aiClient) SearchSemantic(ctx context.Context, query string, categoryID uint, limit int) ([]uint, error) {
+func (c *client) SearchSemantic(ctx context.Context, query string, categoryID uint, limit int) ([]uint, error) {
 	if c.baseURL == "" {
 		return nil, fmt.Errorf("AI service URL not configured")
 	}
@@ -65,6 +69,18 @@ func (c *aiClient) SearchSemantic(ctx context.Context, query string, categoryID 
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
+	}
+	if reqID := logger.GetRequestID(ctx); reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
+	if traceID := logger.GetTraceID(ctx); traceID != "" {
+		req.Header.Set("X-Trace-ID", traceID)
+	}
+	if spanID := logger.GetSpanID(ctx); spanID != "" {
+		req.Header.Set("X-Span-ID", spanID)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -102,7 +118,7 @@ type productIndexPayload struct {
 	Stock        int     `json:"stock_quantity"`
 }
 
-func (c *aiClient) SyncProducts(ctx context.Context, products []Product) error {
+func (c *client) SyncProducts(ctx context.Context, products []product.Product) error {
 	if c.baseURL == "" || len(products) == 0 {
 		return nil
 	}
@@ -143,6 +159,15 @@ func (c *aiClient) SyncProducts(ctx context.Context, products []Product) error {
 	if c.apiKey != "" {
 		req.Header.Set("X-API-Key", c.apiKey)
 	}
+	if reqID := logger.GetRequestID(ctx); reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
+	if traceID := logger.GetTraceID(ctx); traceID != "" {
+		req.Header.Set("X-Trace-ID", traceID)
+	}
+	if spanID := logger.GetSpanID(ctx); spanID != "" {
+		req.Header.Set("X-Span-ID", spanID)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -150,4 +175,58 @@ func (c *aiClient) SyncProducts(ctx context.Context, products []Product) error {
 	}
 	defer resp.Body.Close()
 	return nil
+}
+
+type recommendationItem struct {
+	ID uint `json:"id"`
+}
+
+type recommendationResp struct {
+	Success bool                 `json:"success"`
+	Data    []recommendationItem `json:"data"`
+}
+
+func (c *client) GetRecommendations(ctx context.Context, productID uint, limit int) ([]uint, error) {
+	if c.baseURL == "" {
+		return nil, fmt.Errorf("AI service URL not configured")
+	}
+
+	url := fmt.Sprintf("%s/api/v1/recommendations/%d?limit=%d", c.baseURL, productID, limit)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
+	}
+	if reqID := logger.GetRequestID(ctx); reqID != "" {
+		req.Header.Set("X-Request-ID", reqID)
+	}
+	if traceID := logger.GetTraceID(ctx); traceID != "" {
+		req.Header.Set("X-Trace-ID", traceID)
+	}
+	if spanID := logger.GetSpanID(ctx); spanID != "" {
+		req.Header.Set("X-Span-ID", spanID)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("AI service recommendations returned status code %d", resp.StatusCode)
+	}
+
+	var parsed recommendationResp
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return nil, err
+	}
+
+	ids := make([]uint, 0, len(parsed.Data))
+	for _, item := range parsed.Data {
+		ids = append(ids, item.ID)
+	}
+	return ids, nil
 }

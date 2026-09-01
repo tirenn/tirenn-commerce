@@ -44,6 +44,10 @@ class AgentHarness:
         user_name = context.get("user_name")
         if user_name:
             system_text += f"\nCustomer Context: Customer name is '{user_name}' (authenticated user)."
+        
+        taxonomy = context.get("taxonomy")
+        if taxonomy:
+            system_text += f"\n\nLIVE STORE CATEGORY TAXONOMY (Queried Directly From Database):\n{taxonomy}\nWhen user specifies a product type (e.g. smartphone/HP, tablet, smartwatch, powerbank, earbuds), pass the exact matching category_id or sub_category_id to search_products."
 
         formatted_messages = [{"role": "system", "content": system_text}] + [
             {
@@ -96,6 +100,12 @@ class AgentHarness:
                     tool_instance = self.tools_map.get(tool_name)
                     tool_start = time.perf_counter()
 
+                    # 1. Log Tool Calling Invocation
+                    logger.info(
+                        f"🛠️ [TOOL_CALL_START] Iteration {iteration+1}/{self.max_iterations} | "
+                        f"Tool: '{tool_name}' | Args: {json.dumps(tool_args, ensure_ascii=False, default=str)}"
+                    )
+
                     if tool_instance:
                         tool_result = await tool_instance.execute(tool_args, context=context)
 
@@ -133,15 +143,20 @@ class AgentHarness:
                         tool_result = {"error": f"Tool '{tool_name}' not found in registry."}
 
                     tool_dur_ms = (time.perf_counter() - tool_start) * 1000.0
+                    
+                    # 2. Log Tool Calling Return
+                    result_preview = json.dumps(tool_result, ensure_ascii=False, default=str)
                     logger.info(
-                        f"⚡ [HARNESS_TOOL] iteration={iteration+1} | name='{tool_name}' | "
-                        f"latency={tool_dur_ms:.1f}ms | status='success'"
+                        f"✅ [TOOL_CALL_RETURN] Iteration {iteration+1}/{self.max_iterations} | "
+                        f"Tool: '{tool_name}' | Duration: {tool_dur_ms:.2f}ms | "
+                        f"Return: {result_preview[:250]}"
                     )
 
                     executed_tools_data.append({
                         "name": tool_name,
                         "params": tool_args,
                         "status": "success",
+                        "duration_ms": round(tool_dur_ms, 2),
                         "result": tool_result
                     })
 
@@ -179,6 +194,15 @@ class AgentHarness:
 
         unique_prods = unique_prods[:settings.CHAT_SEARCH_LIMIT]
         elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+
+        # 3. Log Full Distributed Bottleneck Trace Summary
+        tool_timing_summary = ", ".join(f"{t['name']}={t.get('duration_ms', 0)}ms" for t in executed_tools_data)
+        logger.info(
+            f"⚡ [BOTTLENECK_TRACE_SUMMARY] TotalDuration: {elapsed_ms:.2f}ms | "
+            f"IterationsCount: {len(executed_tools_data)} | "
+            f"ToolsBreakdown: [{tool_timing_summary or 'NoTools'}] | "
+            f"SuggestedProductsCount: {len(unique_prods)}"
+        )
 
         return ChatShopperResult(
             reply=final_reply,

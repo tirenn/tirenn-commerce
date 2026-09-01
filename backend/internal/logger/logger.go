@@ -15,6 +15,7 @@ type ContextKey string
 const (
 	RequestIDKey ContextKey = "request_id"
 	TraceIDKey   ContextKey = "trace_id"
+	SpanIDKey    ContextKey = "span_id"
 )
 
 // StructuredLog represents the canonical log payload formatted for Loki / Grafana
@@ -24,6 +25,7 @@ type StructuredLog struct {
 	Level      string                 `json:"level"`
 	RequestID  string                 `json:"request_id,omitempty"`
 	TraceID    string                 `json:"trace_id,omitempty"`
+	SpanID     string                 `json:"span_id,omitempty"`
 	Layer      string                 `json:"layer,omitempty"`
 	Caller     string                 `json:"caller,omitempty"`
 	Func       string                 `json:"func,omitempty"`
@@ -65,6 +67,44 @@ func WithRequestID(ctx context.Context, requestID string) context.Context {
 	return context.WithValue(ctx, RequestIDKey, requestID)
 }
 
+// GetTraceID retrieves the trace ID from context
+func GetTraceID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if traceID, ok := ctx.Value(TraceIDKey).(string); ok && traceID != "" {
+		return traceID
+	}
+	if traceID, ok := ctx.Value("trace_id").(string); ok && traceID != "" {
+		return traceID
+	}
+	return ""
+}
+
+// WithTraceID wraps context with trace ID
+func WithTraceID(ctx context.Context, traceID string) context.Context {
+	return context.WithValue(ctx, TraceIDKey, traceID)
+}
+
+// GetSpanID retrieves the span ID from context
+func GetSpanID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if spanID, ok := ctx.Value(SpanIDKey).(string); ok && spanID != "" {
+		return spanID
+	}
+	if spanID, ok := ctx.Value("span_id").(string); ok && spanID != "" {
+		return spanID
+	}
+	return ""
+}
+
+// WithSpanID wraps context with span ID
+func WithSpanID(ctx context.Context, spanID string) context.Context {
+	return context.WithValue(ctx, SpanIDKey, spanID)
+}
+
 // LogEvent logs a fully structured event with metadata and latency
 func LogEvent(ctx context.Context, level, layer, event, funcName, msg string, durationMs float64, metadata map[string]interface{}, err error) {
 	isSlow := durationMs > 200.0 && level != "ERROR"
@@ -74,6 +114,8 @@ func LogEvent(ctx context.Context, level, layer, event, funcName, msg string, du
 		Service:    "tirenn-backend",
 		Level:      level,
 		RequestID:  GetRequestID(ctx),
+		TraceID:    GetTraceID(ctx),
+		SpanID:     GetSpanID(ctx),
 		Layer:      layer,
 		Caller:     getCaller(3),
 		Func:       funcName,
@@ -151,7 +193,7 @@ func TrackLLM(ctx context.Context, model string, messageCount int, promptPreview
 	start := time.Now()
 
 	// Log LLM Request Prompt Event
-	LogEvent(ctx, "INFO", "ai.llm", "LLM_PROMPT", "OllamaClient.Chat", fmt.Sprintf("🚀 Sending prompt to model %s (%d msgs, temp=%.2f)", model, messageCount, temperature), 0, map[string]interface{}{
+	LogEvent(ctx, "INFO", "ai.llm", "LLM_PROMPT", "AIService.Chat", fmt.Sprintf("🚀 Sending prompt to model %s (%d msgs, temp=%.2f)", model, messageCount, temperature), 0, map[string]interface{}{
 		"model":          model,
 		"message_count":  messageCount,
 		"prompt_preview": promptPreview,
@@ -167,7 +209,7 @@ func TrackLLM(ctx context.Context, model string, messageCount int, promptPreview
 			level = "WARN"
 		}
 
-		LogEvent(ctx, level, "ai.llm", "LLM_RESPONSE", "OllamaClient.Chat", fmt.Sprintf("🤖 Model %s responded in %.2fms (tools called: %d)", model, durationMs, toolCallsCount), durationMs, map[string]interface{}{
+		LogEvent(ctx, level, "ai.llm", "LLM_RESPONSE", "AIService.Chat", fmt.Sprintf("🤖 Model %s responded in %.2fms (tools called: %d)", model, durationMs, toolCallsCount), durationMs, map[string]interface{}{
 			"model":            model,
 			"llm_duration_ms":  durationMs,
 			"tool_calls_count": toolCallsCount,

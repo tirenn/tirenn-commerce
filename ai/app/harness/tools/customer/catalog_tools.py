@@ -34,46 +34,48 @@ class SearchProductsTool(BaseTool):
     def __init__(self, product_repo: ProductRepository, search_usecase: SearchUseCase):
         self.product_repo = product_repo
         self.search_usecase = search_usecase
-        self._update_schema()
 
-    def _update_schema(self):
+    def to_openai_schema(self) -> Dict[str, Any]:
+        """Dynamically refresh parameter schema with live database categories & subcategories"""
         cats = self.product_repo.get_categories_map()
-        cat_desc_list = [f"{k}: {v}" for k, v in cats.items()]
-        cat_desc = ", ".join(cat_desc_list) if cat_desc_list else "1: Electronics, 2: Men Fashion, 3: Women Fashion, 4: Food & Drink, 5: Beauty"
+        cat_desc = ", ".join(f"{k}: '{v}'" for k, v in sorted(cats.items())) if cats else "Category ID"
 
-        sub_cats = self.product_repo.get_sub_categories_map()
-        sub_desc_list = [f"{k}: {v}" for k, v in sub_cats.items()]
-        sub_desc = ", ".join(sub_desc_list) if sub_desc_list else "Sub-Category ID"
-
-        self.parameters_schema = {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "Search query or product description (e.g. 'wireless headphones', 'celana panjang pria', 'tas selempang wanita', 'kopi arabika'). Required."
-                },
-                "min_price": {
-                    "type": "number",
-                    "description": "Minimum price in IDR or USD. Empty if no lower bound."
-                },
-                "max_price": {
-                    "type": "number",
-                    "description": "Maximum price in IDR or USD. Empty if no upper bound."
-                },
-                "in_stock": {
-                    "type": "boolean",
-                    "description": "Filter only products with available stock (true/false)."
-                },
-                "category_id": {
-                    "type": "integer",
-                    "description": f"Main Category ID ({cat_desc})."
-                },
-                "sub_category_id": {
-                    "type": "integer",
-                    "description": f"Sub-Category ID ({sub_desc})."
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "Product search query or user intent (e.g. 'gaming smartphone with active cooling', 'fast charger 65W', 'TWS noise cancelling'). Required."
+                        },
+                        "min_price": {
+                            "type": "number",
+                            "description": "Minimum price in IDR or USD. Empty if no lower bound."
+                        },
+                        "max_price": {
+                            "type": "number",
+                            "description": "Maximum price in IDR or USD. Empty if no upper bound."
+                        },
+                        "in_stock": {
+                            "type": "boolean",
+                            "description": "Filter only products with available stock (true/false)."
+                        },
+                        "category_id": {
+                            "type": "integer",
+                            "description": f"Main Category ID from live store database: {cat_desc}. Set 0 or omit if searching across all categories."
+                        },
+                        "sub_category_id": {
+                            "type": "integer",
+                            "description": "Sub-Category ID from live store database. Set 0 or omit if searching across all subcategories."
+                        }
+                    },
+                    "required": ["query"]
                 }
-            },
-            "required": ["query"]
+            }
         }
 
     async def execute(self, args: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

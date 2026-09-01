@@ -1,12 +1,14 @@
 package product
 
 import (
+	"errors"
 	"math"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/tirenn/commerce/backend/internal/domain"
 	"github.com/tirenn/commerce/backend/internal/response"
 )
 
@@ -295,4 +297,33 @@ func (h *Handler) CreateSubCategory(c *gin.Context) {
 	}
 
 	response.Success(c, http.StatusCreated, "Sub-category created successfully", subCategory)
+}
+
+// GetRecommendations retrieves recommendations for a given product ID
+func (h *Handler) GetRecommendations(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err)
+		return
+	}
+
+	limit := 6
+	if limitParam := c.Query("limit"); limitParam != "" {
+		if val, err := strconv.Atoi(limitParam); err == nil {
+			limit = val
+		}
+	}
+
+	recs, err := h.useCase.GetRecommendations(c.Request.Context(), uint(id), limit)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			response.ErrorResponse(c, http.StatusNotFound, "Product not found", err)
+			return
+		}
+		response.ErrorResponse(c, http.StatusInternalServerError, "Failed to get recommendations", err)
+		return
+	}
+
+	response.Success(c, http.StatusOK, "Recommendations retrieved successfully", recs)
 }

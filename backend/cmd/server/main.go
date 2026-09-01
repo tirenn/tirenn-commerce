@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tirenn/commerce/backend/internal/client/ai"
 	"github.com/tirenn/commerce/backend/internal/config"
 	"github.com/tirenn/commerce/backend/internal/database"
 	"github.com/tirenn/commerce/backend/internal/domain/auth"
@@ -36,6 +37,7 @@ func main() {
 	}
 
 	// 4. Dependency Injection: Repositories & External Adapters
+	aiClient := ai.NewClient(cfg.AIServiceURL, cfg.InternalAPIKey)
 	authRepo := auth.NewRepository(db)
 	productRepo := product.NewRepository(db, cfg)
 	orderRepo := order.NewRepository(db)
@@ -44,7 +46,7 @@ func main() {
 
 	// 5. Dependency Injection: UseCases
 	authUseCase := auth.NewUseCase(authRepo, cfg)
-	productUseCase := product.NewUseCase(productRepo, rdb)
+	productUseCase := product.NewUseCase(productRepo, aiClient)
 	orderUseCase := order.NewUseCase(orderRepo)
 	customerUseCase := customer.NewUseCase(customerRepo)
 	dashboardUseCase := dashboard.NewUseCase(dashboardRepo)

@@ -28,7 +28,7 @@ type KnowledgeChunk struct {
 	ChunkIndex int              `gorm:"not null" json:"chunk_index"`
 	Content    string           `gorm:"type:text;not null" json:"content"`
 	PageNumber int              `gorm:"not null;default:1" json:"page_number"`
-	Embedding  *pgvector.Vector `gorm:"type:vector(384)" json:"-"`
+	Embedding  *pgvector.Vector `gorm:"type:vector(1024)" json:"-"`
 	CreatedAt  time.Time        `gorm:"autoCreateTime" json:"created_at"`
 }
 

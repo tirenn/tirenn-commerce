@@ -66,13 +66,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ isOpen, onClose, onCheck
         onClick={onClose}
       />
 
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+      <div className="fixed inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10 w-full sm:w-auto">
         <div
           data-testid="cart-drawer"
-          className="w-screen max-w-md bg-white border-l border-slate-200 flex flex-col justify-between p-6 shadow-2xl relative animate-modal"
+          className="w-full sm:w-screen sm:max-w-md bg-white border-l border-slate-200 flex flex-col justify-between p-4 sm:p-6 shadow-2xl relative animate-modal h-full"
         >
           {/* Header */}
-          <div className="pb-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="pb-3 sm:pb-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="font-bold text-lg text-slate-900">
               {t('cart.title')} ({items.length})
             </h2>

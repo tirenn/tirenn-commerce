@@ -32,11 +32,11 @@ internal/
 
 - **`users`**: User identity, hashed passwords, roles (`ADMIN` / `CUSTOMER`).
 - **`categories`** & **`sub_categories`**: Product taxonomy (e.g. *Elektronik & Gadget*, *Fashion Pria*, *Fashion Wanita*).
-- **`products`**: Product inventory, SKU, pricing, stock levels, `embedding vector(384)`, full-text search fields.
+- **`products`**: Product inventory, SKU, pricing, stock levels, `embedding vector(1024)`, full-text search fields.
 - **`stock_adjustment_logs`**: Complete audit trail of stock adjustments (`ADD`, `SUBTRACT`, `SET`, admin ID, reason).
 - **`orders` & `order_items`**: Order transactions, total amount, shipping addresses, items snapshot.
 - **`knowledge_documents`**: RAG Knowledge Base documents (title, doc_type, filename, total_pages, total_chunks, created_at).
-- **`knowledge_chunks`**: RAG Knowledge Chunks (document_id FK, chunk_index, content, page_number, `embedding vector(384)`, HNSW vector cosine index `idx_knowledge_chunks_embedding_hnsw`).
+- **`knowledge_chunks`**: RAG Knowledge Chunks (document_id FK, chunk_index, content, page_number, `embedding vector(1024)`, HNSW vector cosine index `idx_knowledge_chunks_embedding_hnsw`).
 
 ---
 
@@ -67,6 +67,16 @@ internal/
 - `GET /api/v1/admin/customers`: List customer directory with metrics.
 
 ---
+
+### 📅 2026-09-01
+
+- `[Architecture & Ollama Decoupling]` Complete Backend Decoupling from Ollama & AI Client Relocation:
+  - **Ollama Decoupling**: Completely removed Ollama HTTP dependencies, configs, and direct API invocations from the backend. The backend communicates solely with the Python AI microservice (`tirenn-ai-service`) via HTTP (`AI_SERVICE_URL=http://localhost:8000`).
+  - **AI Client Extraction (`internal/client/ai`)**: Moved AI client implementation out of `domain/product` into dedicated `internal/client/ai/client.go` adapter (`SearchSemantic`, `SyncProducts`, `GetRecommendations`) with `X-API-Key` authentication.
+  - **Domain Port Interface**: Defined Clean Architecture `AIClient` interface in `domain/product/usecase.go` and wired dependency injection in `cmd/server/main.go`.
+- `[Database & Migrations]` 1024-Dimension Vector Embeddings & Knowledge Tables:
+  - **Products Embedding Migration (`20260828000002_add_embedding_to_products.sql`)**: Created migration adding `embedding vector(1024)` column and HNSW cosine distance index `idx_products_embedding_hnsw` on `products`.
+  - **Knowledge Base Tables (`20260828000003_create_knowledge_tables.sql`)**: Created `knowledge_documents` table and `knowledge_chunks` table with `embedding vector(1024)` and HNSW cosine index `idx_knowledge_chunks_embedding_hnsw`.
 
 ### 📅 2026-08-31
 

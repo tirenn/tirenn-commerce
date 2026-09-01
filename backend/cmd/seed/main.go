@@ -1,14 +1,11 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"log"
-	"time"
 
-	"tirenn-ai-commerce/internal/client/ollama"
-	"tirenn-ai-commerce/internal/config"
-	"tirenn-ai-commerce/internal/database"
+	"github.com/tirenn/commerce/backend/internal/config"
+	"github.com/tirenn/commerce/backend/internal/database"
 )
 
 func main() {
@@ -24,28 +21,17 @@ func main() {
 		log.Fatalf("❌ Database connection error: %v", err)
 	}
 
-	// Initialize Ollama client (with fallback to localhost for host CLI execution)
-	ollamaURL := cfg.OllamaURL
-	ollamaClient := ollama.NewClient(ollamaURL, cfg.OllamaModel, cfg.OllamaEmbeddingModel)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if err := ollamaClient.Ping(ctx); err != nil && ollamaURL != "http://localhost:11434" && ollamaURL != "http://127.0.0.1:11434" {
-		log.Println("Ollama container URL unreachable from host CLI, attempting http://localhost:11434...")
-		ollamaClient = ollama.NewClient("http://localhost:11434", cfg.OllamaModel, cfg.OllamaEmbeddingModel)
-	}
-
 	if *forceFlag {
-		log.Println("🚀 Executing full Force Database Reset and 560-Product Seeding with Vector Embeddings...")
-		if err := database.ForceSeed(db, ollamaClient); err != nil {
+		log.Println("🚀 Executing full Force Database Reset and Smartphone Catalog Seeding...")
+		if err := database.ForceSeed(db, cfg); err != nil {
 			log.Fatalf("❌ Database seeding failed: %v", err)
 		}
 	} else {
 		log.Println("🌱 Executing Safe Database Seeding (if not already populated)...")
-		if err := database.Seed(db, ollamaClient); err != nil {
+		if err := database.Seed(db); err != nil {
 			log.Fatalf("❌ Database seeding failed: %v", err)
 		}
 	}
 
-	log.Println("✅ Database successfully seeded with 560 products, vector embeddings, users, categories, and initial orders!")
+	log.Println("✅ Database successfully seeded with smartphone & electronics catalog, users, and categories!")
 }

@@ -85,9 +85,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onSelectView }) 
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Revenue */}
-        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+        <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-5 shadow-xs">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
             TOTAL REVENUE
           </span>

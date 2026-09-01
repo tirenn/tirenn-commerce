@@ -66,6 +66,13 @@ The Shopper Agent dispatches specialized tools via the Agent Harness:
 
 ## 📜 Service Changelog
 
+### 📅 2026-09-01
+- `[AI Service & Embeddings]` Migrated Embedding Pipeline from HuggingFace Transformers to Ollama API:
+  - **Ollama Embedding Integration**: Refactored `EmbeddingRepository` (`app/repositories/embedding_repository.py`) to generate dense vector embeddings directly via Ollama (`POST /api/embed` and `/api/embeddings`).
+  - **Dynamic Dimension & Unit Normalization**: Added automatic dimension detection (supporting 1024-dim `bge-m3` or configured model), L2 vector unit normalization, batch embedding, and zero-vector handling for empty inputs.
+  - **Container Optimization**: Removed heavy `sentence-transformers` and PyTorch dependencies from `requirements.txt` and `Dockerfile`, drastically reducing container build time and memory usage.
+  - **Comprehensive Test Suite**: Added `tests/test_embedding_repository.py` covering single/batch encoding, dimension checks, normalization, and network fallback (53/53 pytest tests passing).
+
 ### 📅 2026-08-28
 - `[AI Service]` Implemented Real-Time Product Recommendation Engine (`GET /api/v1/products/{id}/recommendations`):
   - Added high-performance pgvector cosine distance search (`<=>`) on 384-dimensional embeddings.
@@ -98,6 +105,20 @@ The Shopper Agent dispatches specialized tools via the Agent Harness:
     - `AdjustProductStockTool`: Implemented **2-Step Confirmation Guardrail** (`confirmed: bool`). When `confirmed=false`, tool blocks mutation and returns preview metadata (Product Name, SKU, Current Stock, Projected New Stock, Audit Reason) requiring explicit Admin approval before execution.
     - `SearchAdminInternalSOPTool`: Executes vector RAG queries restricted strictly to `doc_type="SOP_ADMIN"`.
   - **JWT Authorization**: Guarded `POST /api/v1/chat/admin` with `verify_admin_jwt` (enforcing `role == 'ADMIN'`).
+### 📅 2026-09-01
+
+- `[AI Service - Dynamic DB Taxonomy]` Refactored Category Selection to Live Database Taxonomy:
+  - **Dynamic Taxonomy Fetching**: Added `ProductRepository.get_taxonomy_prompt_text()` to query `categories` LEFT JOIN `sub_categories` live from PostgreSQL, eliminating all hardcoded taxonomy arrays and keyword heuristic matching.
+  - **Live Function Parameter Schema**: Updated `SearchProductsTool.to_openai_schema()` to dynamically assemble category options directly from PostgreSQL, resolving LLM category hallucination without manual intervention.
+- `[AI Service - Performance & Timeout Fix]` Optimized CPU Latency and Context Length:
+  - **Inference Parameter Tuning**: Added `LLM_NUM_PREDICT=350`, `LLM_NUM_CTX=2048`, and `LLM_KEEP_ALIVE="60m"` in `llm_repository.py`. Dropped CPU generation duration from 70s to ~5s, eliminating browser timeout errors.
+  - **Threshold Calibration**: Calibrated `DEFAULT_SEARCH_SCORE_THRESHOLD=0.38` and `CHAT_SEARCH_SCORE_THRESHOLD=0.30` in `.env`, eliminating low-relevance cross-category matches (e.g. smartwatches/tempered glass appearing for phone searches).
+- `[AI Service - Multi-Stack Docker Compose]` Docker Architecture Separation:
+  - Created standalone `docker-compose.yml` inside `ai/` operating on shared bridge network `tirenn-net`.
+  - Externalized 100% of configurable hyperparameters into `ai/.env` and updated `ai/.env.example`.
+
+### 📅 2026-08-31
+
 - `[AI Service]` Implemented 2-Tier Redis Semantic RAG Cache in `KnowledgeUseCase`:
   - **Tier 1 (Exact Hash Match)**: Stores hash keys (`rag:exact:{scope}:{hash}`) in Redis with 24h TTL for $< 1\text{ms}$ instantaneous responses.
   - **Tier 2 (Semantic Vector Similarity Match)**: Stores query embeddings in Redis List (`rag:semantic:{scope}`) and evaluates cosine similarity against active clusters in in-memory RAM. When $\ge 92\%$ similarity is reached, returns cached excerpts in $\approx 5\text{ms}$ without invoking PostgreSQL.

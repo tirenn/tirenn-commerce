@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     DB_HOST: str = "postgres"
     DB_PORT: int = 5432
     DB_USER: str = "postgres_user111"
-    DB_PASSWORD: str = "password123!!!"
+    DB_PASSWORD: str = ""
     DB_NAME: str = "commerce_db"
     
     # Core Backend URL
@@ -31,17 +31,24 @@ class Settings(BaseSettings):
     # Ollama Local LLM Settings (Qwen 2.5 3B for intelligent Tool Calling)
     OLLAMA_BASE_URL: str = "http://ollama:11434"
     LLM_MODEL: str = "qwen2.5:3b"
+    LLM_NUM_PREDICT: int = 350
+    LLM_NUM_CTX: int = 2048
+    LLM_KEEP_ALIVE: str = "60m"
+    LLM_TIMEOUT: float = 120.0
+    MAX_AGENT_ITERATIONS: int = 5
 
     # LLM Temperature Settings
     LLM_TOOL_TEMPERATURE: float = 0.0
     LLM_CHAT_TEMPERATURE: float = 0.3
 
+    # Embedding Settings
+    EMBEDDING_DIMENSIONS: int = 1024
+
     # Similarity & Search Accuracy Thresholds (Calibrated for multilingual embeddings)
-    DEFAULT_SEARCH_SCORE_THRESHOLD: float = 0.25
-    CHAT_SEARCH_SCORE_THRESHOLD: float = 0.20
-    CHAT_SEARCH_FALLBACK_THRESHOLD: float = 0.10
-
-
+    DEFAULT_SEARCH_SCORE_THRESHOLD: float = 0.38
+    CHAT_SEARCH_SCORE_THRESHOLD: float = 0.30
+    CHAT_SEARCH_FALLBACK_THRESHOLD: float = 0.20
+    RECOMMENDATION_SIMILARITY_THRESHOLD: float = 0.35
 
     # Hybrid Search Settings (Dense Vector + Trigram Text Matching)
     ENABLE_HYBRID_SEARCH: bool = True
@@ -51,6 +58,7 @@ class Settings(BaseSettings):
     # Search Limit Defaults
     SEARCH_LIMIT: int = 12
     CHAT_SEARCH_LIMIT: int = 6
+    RECOMMENDATIONS_LIMIT: int = 6
 
     # API Security Settings
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,*"
@@ -60,7 +68,7 @@ class Settings(BaseSettings):
     MAX_REQUEST_BODY_BYTES: int = 10_485_760  # 10MB
 
     # JWT Authentication Settings (Synced with Golang Backend)
-    JWT_SECRET: str = "super-secret-tirenn-jwt-key-2026"
+    JWT_SECRET: str = ""
     JWT_ISSUER: str = "commerce-api"
 
     # Redis Session History & Sliding Window Settings
@@ -75,7 +83,7 @@ class Settings(BaseSettings):
     RAG_CACHE_MAX_ENTRIES: int = 100            # Max semantic vector entries stored per document scope
 
     # Internal Machine-to-Machine Secret Key
-    INTERNAL_API_KEY: str = "very-very-secret-internal-key-2026"
+    INTERNAL_API_KEY: str = ""
 
 
 settings = Settings()

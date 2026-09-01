@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional, Dict, Any
 import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor, execute_values
 from app.core.config import settings
 
 logger = logging.getLogger("ai-service.repository.knowledge")
@@ -45,9 +45,18 @@ class KnowledgeRepository:
         total_pages: int,
         chunks: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """Save a new knowledge document and its vector chunks in an atomic transaction"""
-        with self._get_connection() as conn:
+        """
+        Save a new knowledge document and all its vector chunks in an atomic ACID transaction.
+        Uses execute_values for high-throughput batch insertion with automatic rollback on any failure.
+        Guarantees ZERO missing chunks and ZERO partial document states.
+        """
+        if not chunks:
+            raise ValueError(f"Cannot save document '{title}' with 0 chunks.")
+
+        conn = self._get_connection()
+        try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # 1. Insert Document Header
                 cur.execute("""
                     INSERT INTO knowledge_documents (title, doc_type, filename, total_pages, total_chunks)
                     VALUES (%s, %s, %s, %s, %s)
@@ -56,13 +65,11 @@ class KnowledgeRepository:
                 doc_record = cur.fetchone()
                 doc_id = doc_record["id"]
 
-                # Batch insert chunks
+                # 2. Prepare Chunks Batch Tuples
+                chunk_records = []
                 for chunk in chunks:
                     vec_str = self._to_vector_str(chunk["embedding"]) if chunk.get("embedding") else None
-                    cur.execute("""
-                        INSERT INTO knowledge_chunks (document_id, chunk_index, content, page_number, embedding)
-                        VALUES (%s, %s, %s, %s, %s::vector);
-                    """, (
+                    chunk_records.append((
                         doc_id,
                         chunk["chunk_index"],
                         chunk["content"],
@@ -70,8 +77,34 @@ class KnowledgeRepository:
                         vec_str
                     ))
 
+                # 3. High-throughput atomic multi-row batch insert
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO knowledge_chunks (document_id, chunk_index, content, page_number, embedding)
+                    VALUES %s;
+                    """,
+                    chunk_records,
+                    template="(%s, %s, %s, %s, %s::vector)"
+                )
+
+                # 4. Atomic Commit
                 conn.commit()
+                logger.info(
+                    f"💾 [RAG_REPO_SAVED] Atomically inserted document_id={doc_id} ('{title}') "
+                    f"with all {len(chunk_records)} vector chunks."
+                )
                 return dict(doc_record)
+        except Exception as e:
+            conn.rollback()
+            logger.error(
+                f"💥 [RAG_REPO_ROLLBACK] Failed to save document '{title}' with {len(chunks)} chunks. "
+                f"Transaction rolled back completely: {e}",
+                exc_info=True
+            )
+            raise e
+        finally:
+            conn.close()
 
     def list_documents(self) -> List[Dict[str, Any]]:
         """List all indexed knowledge documents with chunk counts"""

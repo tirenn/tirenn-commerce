@@ -13,7 +13,7 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
       "id": 100,
-      "title": "⚡ Real-time System Metrics & Error Rates",
+      "title": "🌐 Cross-Service APM, Latency & Error Rates",
       "type": "row"
     },
     {
@@ -21,24 +21,24 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
-          "custom": { "fillOpacity": 80, "gradientMode": "none", "lineWidth": 1 },
+          "custom": { "fillOpacity": 70, "gradientMode": "opacity", "lineWidth": 2 },
           "unit": "short"
         }
       },
-      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 1 },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 1 },
       "id": 1,
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] },
         "tooltip": { "mode": "multi" }
       },
-      "title": "📊 Log Volume by Level (Per Minute)",
+      "title": "📊 Log Traffic Volume by Service (req/min)",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
           "editorMode": "code",
-          "expr": "sum by (level) (count_over_time({service=\"backend\"} [$__interval]))",
-          "legendFormat": "{{level}}",
+          "expr": "sum by (service) (count_over_time({container=~\"tirenn-.+\"} [$__interval]))",
+          "legendFormat": "{{service}}",
           "queryType": "range",
           "refId": "A"
         }
@@ -53,26 +53,27 @@
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 200 },
-              { "color": "red", "value": 1000 }
+              { "color": "#EAB839", "value": 150 },
+              { "color": "#EF843C", "value": 300 },
+              { "color": "#E24D42", "value": 1000 }
             ]
           },
           "unit": "ms"
         }
       },
-      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 1 },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 1 },
       "id": 2,
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
         "tooltip": { "mode": "multi" }
       },
-      "title": "⏱️ P95 Function Execution Latency (ms)",
+      "title": "⏱️ P95 Execution Latency by Operation (ms)",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
           "editorMode": "code",
-          "expr": "quantile_over_time(0.95, {service=\"backend\"} | json | unwrap duration_ms [$__interval]) by (func)",
+          "expr": "quantile_over_time(0.95, {service=~\"backend|ai-service\"} | json | unwrap duration_ms [$__interval]) by (func)",
           "legendFormat": "{{func}}",
           "queryType": "range",
           "refId": "A"
@@ -80,118 +81,52 @@
       ]
     },
     {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
-      "id": 200,
-      "title": "🤖 AI Engine & RAG Tracing Breakdown",
-      "type": "row"
-    },
-    {
       "datasource": { "type": "loki", "uid": "Loki" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
-          "custom": { "fillOpacity": 80, "lineWidth": 1 },
-          "unit": "ms"
+          "custom": { "fillOpacity": 60, "lineWidth": 2 },
+          "unit": "short"
         }
       },
-      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 8 },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 1 },
       "id": 3,
       "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" }
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] },
+        "tooltip": { "mode": "multi" }
       },
-      "title": "🧠 LLM Inference Duration (ms)",
+      "title": "🚨 Error & Warning Frequency (Count)",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({service=\"backend\"} | json | event=\"LLM_RESPONSE\" | unwrap duration_ms [$__interval]) by (model)",
-          "legendFormat": "Ollama ({{model}})",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "loki", "uid": "Loki" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "unit": "ms"
-        }
-      },
-      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 8 },
-      "id": 4,
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" }
-      },
-      "title": "🛠️ AI Tool Calling Execution Time (ms)",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "loki", "uid": "Loki" },
-          "editorMode": "code",
-          "expr": "avg_over_time({service=\"backend\"} | json | event=\"TOOL_EXECUTION\" | unwrap duration_ms [$__interval]) by (tool_name)",
-          "legendFormat": "Tool: {{tool_name}}",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "loki", "uid": "Loki" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "unit": "ms"
-        }
-      },
-      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 8 },
-      "id": 5,
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" }
-      },
-      "title": "⚡ RAG Stage Latency Breakdown (ms)",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "loki", "uid": "Loki" },
-          "editorMode": "code",
-          "expr": "avg_over_time({service=\"backend\"} | json | event=\"RAG_RETRIEVAL\" | unwrap duration_ms [$__interval])",
-          "legendFormat": "1. Vector Retrieval (Embedding + SQL)",
+          "expr": "sum by (service) (count_over_time({container=~\"tirenn-.+\"} |= \"ERROR\" [$__interval]))",
+          "legendFormat": "ERROR: {{service}}",
           "queryType": "range",
           "refId": "A"
         },
         {
           "datasource": { "type": "loki", "uid": "Loki" },
           "editorMode": "code",
-          "expr": "avg_over_time({service=\"backend\"} | json | event=\"RAG_AUGMENTATION\" | unwrap duration_ms [$__interval])",
-          "legendFormat": "2. Context Augmentation",
+          "expr": "sum by (service) (count_over_time({container=~\"tirenn-.+\"} |= \"WARN\" [$__interval]))",
+          "legendFormat": "WARN: {{service}}",
           "queryType": "range",
           "refId": "B"
-        },
-        {
-          "datasource": { "type": "loki", "uid": "Loki" },
-          "editorMode": "code",
-          "expr": "avg_over_time({service=\"backend\"} | json | event=\"RAG_GENERATION\" | unwrap duration_ms [$__interval])",
-          "legendFormat": "3. LLM Answer Generation",
-          "queryType": "range",
-          "refId": "C"
         }
       ]
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
-      "id": 300,
-      "title": "⚠️ Bottlenecks & Slow Executions Table (> 200ms)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "id": 200,
+      "title": "⚠️ Bottleneck & Slow Queries / APIs (> 200ms)",
       "type": "row"
     },
     {
       "datasource": { "type": "loki", "uid": "Loki" },
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 16 },
-      "id": 6,
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 9 },
+      "id": 4,
       "options": {
         "dedupStrategy": "none",
         "enableLogDetails": true,
@@ -202,13 +137,13 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "title": "🚨 Detected Slow Operations (> 200ms)",
+      "title": "🔍 Detected Slow Operations & Bottlenecks (> 200ms)",
       "type": "logs",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
           "editorMode": "code",
-          "expr": "{service=\"backend\"} | json | is_slow=\"true\" or duration_ms > 200",
+          "expr": "{container=~\"tirenn-.+\"} |= \"SLOW\" or ({container=~\"tirenn-.+\"} | json | duration_ms > 200 or is_slow=\"true\")",
           "queryType": "range",
           "refId": "A"
         }
@@ -216,14 +151,70 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
-      "id": 400,
-      "title": "📜 Live Application Log Stream (Prompts, Tools, Traces, Errors)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "id": 300,
+      "title": "🤖 AI Shopper & LLM Tool Calling Deep-Dive",
       "type": "row"
     },
     {
       "datasource": { "type": "loki", "uid": "Loki" },
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 23 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 70, "lineWidth": 2 },
+          "unit": "ms"
+        }
+      },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 17 },
+      "id": 5,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "🧠 LLM Model Inference Latency (ms)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "editorMode": "code",
+          "expr": "avg_over_time({service=\"ai-service\"} | pattern `<_> [LLM_RESPONSE] Duration: <duration_ms>ms <_>` | unwrap duration_ms [$__interval])",
+          "legendFormat": "Qwen 2.5 3B Chat Inference",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 70, "lineWidth": 2 },
+          "unit": "ms"
+        }
+      },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 17 },
+      "id": 6,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": "multi"
+      },
+      "title": "🛠️ Tool Calling Execution Duration Breakdown (ms)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "editorMode": "code",
+          "expr": "avg_over_time({service=\"ai-service\"} | pattern `<_> [TOOL_CALL_RETURN] <_> Tool: '<tool_name>' | Duration: <duration_ms>ms <_>` | unwrap duration_ms [$__interval]) by (tool_name)",
+          "legendFormat": "Tool: {{tool_name}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 24 },
       "id": 7,
       "options": {
         "dedupStrategy": "none",
@@ -235,13 +226,46 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "title": "🔍 Complete Structured Log Stream",
+      "title": "📜 Live LLM Input, Output, and Tool Call Stream",
       "type": "logs",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "Loki" },
           "editorMode": "code",
-          "expr": "{service=\"backend\"} | json",
+          "expr": "{service=\"ai-service\"} |= \"LLM_\" or {service=\"ai-service\"} |= \"TOOL_CALL_\" or {service=\"ai-service\"} |= \"BOTTLENECK_TRACE_SUMMARY\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 400,
+      "title": "🔍 End-to-End Distributed Tracing & Correlation Log Explorer",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 35 },
+      "id": 8,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "title": "🌐 Correlated Cross-Container Stream (Go Backend + Python AI + PostgreSQL)",
+      "type": "logs",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "Loki" },
+          "editorMode": "code",
+          "expr": "{container=~\"tirenn-.+\"} |~ \"(?i)$search_filter\"",
           "queryType": "range",
           "refId": "A"
         }
@@ -251,7 +275,23 @@
   "refresh": "5s",
   "schemaVersion": 39,
   "style": "dark",
-  "tags": ["tirenn", "observability", "ai", "tracing", "rag"],
+  "tags": ["tirenn", "observability", "ai", "tracing", "bottlenecks", "apm"],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "",
+          "value": ""
+        },
+        "description": "Filter logs by Trace ID, Request ID, SKU, or Keyword",
+        "label": "Search / Trace ID",
+        "name": "search_filter",
+        "query": "",
+        "type": "textbox"
+      }
+    ]
+  },
   "time": {
     "from": "now-15m",
     "to": "now"
@@ -260,7 +300,7 @@
     "refresh_intervals": ["1s", "5s", "10s", "30s", "1m"]
   },
   "timezone": "browser",
-  "title": "Tirenn Commerce - Observability, AI & Distributed Tracing",
+  "title": "Tirenn Commerce - Distributed Tracing & APM Bottleneck Observability",
   "uid": "tirenn-observability",
-  "version": 1
+  "version": 2
 }

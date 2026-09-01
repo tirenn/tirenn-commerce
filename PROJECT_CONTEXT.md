@@ -38,6 +38,35 @@ tirenn-commerce/
 
 ## 📜 Activity Changelog & History
 
+### 📅 2026-09-01
+
+- `[Architecture & Multi-Stack Docker Compose]` Separated Docker Stacks:
+  - **Modular Directory Compose**: Separated monolithic compose into 4 independent, modular `docker-compose.yml` stacks (`infra/`, `ai/`, `backend/`, and `frontend/`) sharing a unified external bridge network `tirenn-net`.
+  - **Independent Life-cycle**: Each stack can be built, started, stopped, or scaled independently with zero side effects on other containers.
+- `[Mobile Responsive UI & UX]` Comprehensive Mobile Optimization:
+  - **Mobile Bottom Navigation**: Added sticky bottom navigation bar for mobile viewports (`sm:hidden fixed bottom-0 left-0 right-0 z-40`) providing one-thumb access to Store, AI Copilot, Cart (with live badge), and Orders/Profile.
+  - **2-Column Smartphone Grid**: Upgraded catalog layout to a 2-column mobile grid (`grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4`).
+  - **Mobile Bottom Sheets**: Converted product detail modals, cart drawer, and AI chat to fluid mobile bottom sheets / full viewports.
+  - **Horizontal Touch Carousels**: Made category and subcategory filter tabs swipeable horizontally on mobile devices.
+- `[AI Search & Dynamic Database Taxonomy]` Elimination of Hardcoded Categories:
+  - **Live Dynamic Taxonomy**: Refactored `ProductRepository.get_taxonomy_prompt_text()` and `SearchProductsTool.to_openai_schema()` to query `categories` LEFT JOIN `sub_categories` live from PostgreSQL, injecting the exact schema into the LLM system prompt and tool definitions dynamically.
+  - **Information Asymmetry Resolution**: Resolved ambiguous category ID picking in `qwen2.5:3b` by exposing full taxonomy tree at runtime, eliminating hardcoded heuristics.
+- `[AI Performance & Threshold Tuning]` Inference Speedup & Threshold Calibration:
+  - **Threshold Calibration**: Calibrated `DEFAULT_SEARCH_SCORE_THRESHOLD=0.38` and `CHAT_SEARCH_SCORE_THRESHOLD=0.30`, eliminating low-relevance false positives (e.g. smartwatch/tempered glass appearing for phone queries).
+  - **Latency Optimization**: Added `LLM_NUM_PREDICT=350`, `LLM_NUM_CTX=2048`, and `LLM_KEEP_ALIVE="60m"` in `llm_repository.py`, reducing inference time from 70s to ~5s on CPU.
+- `[Config & Environment Standardization]` Complete Centralized .env Configuration:
+  - **100% Config via .env**: Externalized all configurable thresholds, weights, limits, LLM hyperparameters, and database/redis connection settings to `.env`.
+  - **Synchronized .env.example**: Updated comprehensive `.env.example` templates across `ai/`, `backend/`, `frontend/`, and `infra/`.
+- `[AI Service & Embeddings]` Migrated Embedding Generation to Ollama API:
+  - **Ollama Direct Embeddings**: Refactored `EmbeddingRepository` in Python AI service to call Ollama (`/api/embed` and `/api/embeddings`) directly with dynamic dimension discovery, L2 unit normalization, and fallback resilience.
+  - **Lightweight Image**: Removed `sentence-transformers` and PyTorch dependencies from `requirements.txt` and `Dockerfile`.
+- `[Golang Backend & Clean Architecture]` Decoupled Backend from Ollama & Relocated AI Client:
+  - **Total Ollama Decoupling**: Removed all Ollama HTTP client adapters, configs, and calls from the Go backend. All AI operations are now dispatched through the dedicated Python AI microservice (`AI_SERVICE_URL=http://localhost:8000`).
+  - **Dedicated Adapter Package (`internal/client/ai`)**: Moved AI client out of `domain/product` to `internal/client/ai/client.go` implementing `SearchSemantic`, `SyncProducts`, and `GetRecommendations`.
+- `[Database Schema & Goose Migrations]` 1024-Dimension Vector Migrations:
+  - **Products Embedding (`20260828000002_add_embedding_to_products.sql`)**: Created Goose migration adding `embedding vector(1024)` column and HNSW cosine distance index `idx_products_embedding_hnsw` on `products`.
+  - **Knowledge Documents & Chunks (`20260828000003_create_knowledge_tables.sql`)**: Created Goose migration for `knowledge_documents` and `knowledge_chunks` with `embedding vector(1024)` and HNSW index `idx_knowledge_chunks_embedding_hnsw`.
+
 ### 📅 2026-08-31
 
 - `[Golang & Clean Architecture]` AI Tool Invocation Refactor to Domain Repositories:

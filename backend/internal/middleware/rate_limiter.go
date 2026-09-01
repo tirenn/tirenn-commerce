@@ -27,6 +27,12 @@ func RateLimiter(rdb *redis.Client, cfg *config.Config) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
+		// If rate limiting is disabled in configuration, proceed immediately
+		if !cfg.Redis.RateLimitEnabled {
+			c.Next()
+			return
+		}
+
 		// If Redis is not initialized, fail open and proceed
 		if rdb == nil {
 			c.Next()

@@ -252,16 +252,16 @@ export const AIChatModal: React.FC<AIChatModalProps> = ({ isOpen, onClose }) => 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg h-[640px] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-modal">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-0 sm:p-4">
+      <div className="bg-white rounded-none sm:rounded-2xl w-full sm:max-w-lg h-[100dvh] sm:h-[640px] max-h-[100dvh] sm:max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-modal">
         {/* Header */}
-        <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-sm shadow-inner">
+        <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-sm shadow-inner shrink-0">
               🤖
             </div>
             <div>
-              <div className="font-bold text-sm leading-tight flex items-center gap-1.5">
+              <div className="font-bold text-xs sm:text-sm leading-tight flex items-center gap-1.5">
                 {t('ai_chat.title')}
                 <span className="bg-purple-500/30 text-purple-200 text-[10px] px-1.5 py-0.2 rounded font-mono">
                   Qwen 2.5 1.5B

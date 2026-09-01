@@ -31,6 +31,9 @@
     "sort_name_asc": "Nama: A ke Z",
     "price_range": "Rentang Harga",
     "in_stock_only": "Hanya Stok Tersedia",
+    "semantic_search": "Pencarian Semantik AI",
+    "semantic_search_on_hint": "Menggunakan Python AI Service (pgvector embeddings)",
+    "semantic_search_off_hint": "Menggunakan Go Backend Service (pencarian SQL)",
     "reset": "Reset Filter",
     "results_count": "Menampilkan {{count}} produk"
   },
@@ -221,26 +224,23 @@
     "idr": "IDR (Rp)"
   },
   "categories": {
-    "elektronik-gadget": "Elektronik & Gadget",
-    "fashion-pria": "Fashion Pria",
-    "fashion-wanita": "Fashion Wanita",
-    "makanan-minuman": "Makanan & Minuman",
-    "kecantikan-perawatan": "Kecantikan & Perawatan"
+    "smartphones": "Smartphone & Handphone",
+    "tablets": "Tablet & iPad",
+    "smartwatches": "Smartwatch & Wearables",
+    "power-banks": "Power Bank & Fast Charging",
+    "screen-protectors": "Pelindung Layar & Tempered Glass",
+    "audio-earbuds": "Audio & TWS Earbuds",
+    "accessories-cases": "Aksesoris & Casing"
   },
   "subcategories": {
-    "audio-headphone": "Audio & Headphone",
-    "smartwatch-wearables": "Smartwatch & Wearables",
-    "aksesoris-komputer-gaming": "Aksesoris Komputer & Gaming",
-    "pakaian-kaos-pria": "Pakaian & Kaos Pria",
-    "celana-jeans-pria": "Celana & Jeans Pria",
-    "sepatu-sandal-pria": "Sepatu & Sandal Pria",
-    "aksesoris-dompet-pria": "Aksesoris & Dompet Pria",
-    "pakaian-dress-wanita": "Pakaian & Dress Wanita",
-    "tas-dompet-wanita": "Tas & Dompet Wanita",
-    "sepatu-sandal-wanita": "Sepatu & Sandal Wanita",
-    "kopi-teh-nusantara": "Kopi & Teh Nusantara",
-    "camilan-snack-sehat": "Camilan & Snack Sehat",
-    "skincare-perawatan-wajah": "Skincare & Perawatan Wajah",
-    "parfum-body-care": "Parfum & Body Care"
+    "flagship-smartphones": "Flagship Smartphones",
+    "mid-range-smartphones": "Mid-Range Smartphones",
+    "foldable-gaming-smartphones": "Smartphone Lipat & Gaming",
+    "pro-entertainment-tablets": "Tablet Pro & Hiburan",
+    "smartwatches-fitness": "Smartwatch & Pelacak Kebugaran",
+    "fast-charge-power-banks": "Power Bank Fast Charge & Magnetic",
+    "tempered-glass-privacy": "Tempered Glass & Anti-Spy",
+    "anc-earbuds-headphones": "Earbuds & Headphone Peredam Bising",
+    "cases-chargers": "Casing Pelindung & Charger GaN"
   }
 }

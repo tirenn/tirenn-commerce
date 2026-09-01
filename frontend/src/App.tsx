@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiRequest } from './services/api';
+import { apiRequest, searchSemanticAI } from './services/api';
 import { useAuth } from './context/AuthContext';
+import { useCart } from './context/CartContext';
 import type { Product, Category, AppView } from './types';
 
 // Storefront Components
@@ -30,6 +31,7 @@ const PRODUCTS_PER_PAGE = 12;
 export const App: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { currentUser } = useAuth();
+  const { cartCount } = useCart();
   const isAdmin = currentUser?.role === 'ADMIN';
 
   const [currentView, setCurrentView] = useState<AppView>(() => {
@@ -61,6 +63,7 @@ export const App: React.FC = () => {
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSemanticSearch, setIsSemanticSearch] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState(0);
   const [selectedSubCategoryId, setSelectedSubCategoryId] = useState(0);
   const [selectedSort, setSelectedSort] = useState('newest');
@@ -104,38 +107,58 @@ export const App: React.FC = () => {
       setError('');
 
       try {
-        const params = new URLSearchParams();
         const cleanSearch = searchTerm.trim();
-        if (cleanSearch.length >= 3) {
-          params.append('search', cleanSearch);
-        }
-        if (selectedCategoryId > 0) params.append('category_id', selectedCategoryId.toString());
-        if (selectedSubCategoryId > 0) params.append('sub_category_id', selectedSubCategoryId.toString());
-        if (selectedSort) params.append('sort', selectedSort);
-        if (onlyInStock) params.append('in_stock', 'true');
-        params.append('page', pageToFetch.toString());
-        params.append('limit', PRODUCTS_PER_PAGE.toString());
 
-        const res = await apiRequest<Product[]>(`/products?${params.toString()}`);
+        // Branch 1: If Semantic Search is ON and query >= 3 chars, query Python AI Service
+        if (isSemanticSearch && cleanSearch.length >= 3) {
+          const res = await searchSemanticAI(cleanSearch, {
+            categoryId: selectedCategoryId > 0 ? selectedCategoryId : undefined,
+            limit: PRODUCTS_PER_PAGE,
+            inStock: onlyInStock ? true : undefined,
+          });
 
-        if (res.success && Array.isArray(res.data)) {
-          const incoming = res.data;
-          if (isInitial || pageToFetch === 1) {
+          if (res.success && Array.isArray(res.data)) {
+            const incoming = res.data;
             setProducts(incoming);
+            setTotalProducts(res.meta?.total_rows ?? incoming.length);
+            setTotalPages(res.meta?.total_page ?? 1);
           } else {
-            // Append new products, preventing any duplicate IDs
-            setProducts((prev) => {
-              const existingIds = new Set(prev.map((p) => p.id));
-              const fresh = incoming.filter((p) => !existingIds.has(p.id));
-              return [...prev, ...fresh];
-            });
+            setError(res.error || 'Failed to load AI semantic search results');
           }
-          const totalRows = res.meta?.total_rows ?? incoming.length;
-          const pages = res.meta?.total_page ?? res.meta?.total_pages ?? Math.ceil(totalRows / PRODUCTS_PER_PAGE) ?? 1;
-          setTotalProducts(totalRows);
-          setTotalPages(pages);
         } else {
-          setError(res.error || 'Failed to load products');
+          // Branch 2: Standard Go backend service
+          const params = new URLSearchParams();
+          if (cleanSearch.length >= 3) {
+            params.append('search', cleanSearch);
+          }
+          if (selectedCategoryId > 0) params.append('category_id', selectedCategoryId.toString());
+          if (selectedSubCategoryId > 0) params.append('sub_category_id', selectedSubCategoryId.toString());
+          if (selectedSort) params.append('sort', selectedSort);
+          if (onlyInStock) params.append('in_stock', 'true');
+          params.append('page', pageToFetch.toString());
+          params.append('limit', PRODUCTS_PER_PAGE.toString());
+
+          const res = await apiRequest<Product[]>(`/products?${params.toString()}`);
+
+          if (res.success && Array.isArray(res.data)) {
+            const incoming = res.data;
+            if (isInitial || pageToFetch === 1) {
+              setProducts(incoming);
+            } else {
+              // Append new products, preventing any duplicate IDs
+              setProducts((prev) => {
+                const existingIds = new Set(prev.map((p) => p.id));
+                const fresh = incoming.filter((p) => !existingIds.has(p.id));
+                return [...prev, ...fresh];
+              });
+            }
+            const totalRows = res.meta?.total_rows ?? incoming.length;
+            const pages = res.meta?.total_page ?? res.meta?.total_pages ?? Math.ceil(totalRows / PRODUCTS_PER_PAGE) ?? 1;
+            setTotalProducts(totalRows);
+            setTotalPages(pages);
+          } else {
+            setError(res.error || 'Failed to load products');
+          }
         }
       } catch (err: any) {
         setError(err?.message || 'Network error occurred while fetching products');
@@ -145,7 +168,7 @@ export const App: React.FC = () => {
         isFetchingRef.current = false;
       }
     },
-    [searchTerm, selectedCategoryId, selectedSubCategoryId, selectedSort, onlyInStock]
+    [searchTerm, isSemanticSearch, selectedCategoryId, selectedSubCategoryId, selectedSort, onlyInStock]
   );
 
   const loadNextPage = useCallback(() => {
@@ -209,6 +232,7 @@ export const App: React.FC = () => {
 
   const handleResetFilters = () => {
     setSearchTerm('');
+    setIsSemanticSearch(false);
     setSelectedCategoryId(0);
     setSelectedSubCategoryId(0);
     setSelectedSort('newest');
@@ -230,7 +254,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 flex-1 w-full pb-20 sm:pb-10">
         {isAdmin ? (
           /* When logged in as Admin, strictly show admin views */
           currentView === 'admin-products' ? (
@@ -261,17 +285,19 @@ export const App: React.FC = () => {
                 selectedSubCategoryId={selectedSubCategoryId}
                 selectedSort={selectedSort}
                 onlyInStock={onlyInStock}
+                isSemanticSearch={isSemanticSearch}
                 totalProductsCount={totalProducts}
                 onSelectCategory={setSelectedCategoryId}
                 onSelectSubCategory={setSelectedSubCategoryId}
                 onSelectSort={setSelectedSort}
                 onToggleInStock={setOnlyInStock}
+                onToggleSemanticSearch={setIsSemanticSearch}
                 onResetFilters={handleResetFilters}
               />
 
               {/* Initial Loading State */}
               {loadingInitial ? (
-                <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
+                <div className="bg-white border border-slate-200 rounded-xl p-8 sm:p-12 text-center">
                   <span className="text-2xl animate-spin block mb-2">⚡</span>
                   <span className="text-xs text-slate-600">Loading catalog...</span>
                 </div>
@@ -280,7 +306,7 @@ export const App: React.FC = () => {
                   ⚠️ {error}
                 </div>
               ) : !Array.isArray(products) || products.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-xl p-12 text-center space-y-2">
+                <div className="bg-white border border-slate-200 rounded-xl p-8 sm:p-12 text-center space-y-2">
                   <h3 className="font-semibold text-sm text-slate-900">No matching products found</h3>
                   <p className="text-xs text-slate-500">
                     Try adjusting your search keywords or category filters.
@@ -294,10 +320,10 @@ export const App: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {/* Products Grid */}
+                  {/* Products Grid (2 cols on Mobile, 3 cols on Tablet, 4 cols on Desktop) */}
                   <div
                     data-testid="products-grid"
-                    className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5"
+                    className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5"
                   >
                     {products.map((product) => (
                       <ProductCard
@@ -309,9 +335,9 @@ export const App: React.FC = () => {
                   </div>
 
                   {/* Auto-Pagination Infinite Scroll Sentinel & Loading Indicator */}
-                  <div ref={sentinelRef} className="py-10 text-center min-h-[90px] flex flex-col items-center justify-center">
+                  <div ref={sentinelRef} className="py-8 sm:py-10 text-center min-h-[90px] flex flex-col items-center justify-center">
                     {loadingMore ? (
-                      <div className="inline-flex items-center gap-2 bg-white border border-slate-200 px-5 py-2.5 rounded-full shadow-xs text-xs font-semibold text-slate-600 animate-pulse">
+                      <div className="inline-flex items-center gap-2 bg-white border border-slate-200 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full shadow-xs text-xs font-semibold text-slate-600 animate-pulse">
                         <span className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
                         {i18n.language === 'en' ? 'Loading more products...' : 'Memuat lebih banyak produk...'}
                       </div>
@@ -319,10 +345,10 @@ export const App: React.FC = () => {
                       <button
                         onClick={loadNextPage}
                         data-testid="load-more-products-btn"
-                        className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold py-2 px-5 rounded-full shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                        className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold py-2 px-4 sm:px-5 rounded-full shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                       >
                         <span>⬇️</span>
-                        <span>{i18n.language === 'en' ? `Load More Products (${products.length}/${totalProducts})` : `Muat Lebih Banyak (${products.length}/${totalProducts})`}</span>
+                        <span>{i18n.language === 'en' ? `Load More (${products.length}/${totalProducts})` : `Muat Lebih Banyak (${products.length}/${totalProducts})`}</span>
                       </button>
                     ) : products.length >= totalProducts && totalProducts > 0 ? (
                       <div className="text-xs text-slate-400 font-medium">
@@ -342,24 +368,116 @@ export const App: React.FC = () => {
       {/* Footer */}
       {!isAdmin && <Footer onSelectCategory={setSelectedCategoryId} onSelectView={setCurrentView} />}
 
-      {/* Floating AI Shopper Button (Storefront Only) */}
+      {/* Mobile Bottom Sticky Navigation Bar */}
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 py-1.5 px-3 flex items-center justify-around shadow-lg">
+        {!isAdmin ? (
+          <>
+            <button
+              onClick={() => setCurrentView('storefront')}
+              className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-xs font-semibold cursor-pointer ${
+                currentView === 'storefront' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span className="text-base">🛍️</span>
+              <span className="text-[10px]">Store</span>
+            </button>
+            <button
+              onClick={() => setIsAIChatOpen(true)}
+              className="flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-xs font-semibold text-purple-600 cursor-pointer"
+            >
+              <span className="text-base">🤖</span>
+              <span className="text-[10px]">AI Copilot</span>
+            </button>
+            <button
+              onClick={() => setIsCartOpen(true)}
+              className="flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer relative"
+            >
+              <span className="text-base">🛒</span>
+              <span className="text-[10px]">{t('nav.cart')}</span>
+              {cartCount > 0 && (
+                <span className="absolute top-0 right-2 bg-blue-600 text-white text-[9px] font-bold px-1 rounded-full">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+            {currentUser ? (
+              <button
+                onClick={() => setCurrentView('my-orders')}
+                className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-xs font-semibold cursor-pointer ${
+                  currentView === 'my-orders' ? 'text-blue-600' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <span className="text-base">📦</span>
+                <span className="text-[10px]">Orders</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsAuthOpen(true)}
+                className="flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+              >
+                <span className="text-base">👤</span>
+                <span className="text-[10px]">{t('nav.login')}</span>
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => setCurrentView('admin-dashboard')}
+              className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                currentView === 'admin-dashboard' ? 'text-purple-700' : 'text-slate-500'
+              }`}
+            >
+              <span className="text-base">📊</span>
+              <span className="text-[10px]">Stats</span>
+            </button>
+            <button
+              onClick={() => setCurrentView('admin-products')}
+              className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                currentView === 'admin-products' ? 'text-purple-700' : 'text-slate-500'
+              }`}
+            >
+              <span className="text-base">📦</span>
+              <span className="text-[10px]">Products</span>
+            </button>
+            <button
+              onClick={() => setCurrentView('admin-orders')}
+              className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                currentView === 'admin-orders' ? 'text-purple-700' : 'text-slate-500'
+              }`}
+            >
+              <span className="text-base">🚚</span>
+              <span className="text-[10px]">Orders</span>
+            </button>
+            <button
+              onClick={() => setIsAdminChatOpen(true)}
+              className="flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-lg text-xs font-semibold text-purple-700 cursor-pointer"
+            >
+              <span className="text-base">⚡</span>
+              <span className="text-[10px]">AI Copilot</span>
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Floating AI Shopper Button (Desktop Only) */}
       {!isAdmin && (
         <button
           data-testid="ai-shopper-floating-btn"
           onClick={() => setIsAIChatOpen(true)}
-          className="fixed bottom-6 right-6 z-40 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-3 px-4 rounded-full shadow-lg flex items-center gap-2 transition-transform hover:scale-105 cursor-pointer border-2 border-white ring-4 ring-purple-300/40"
+          className="hidden sm:flex fixed bottom-6 right-6 z-40 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-3 px-4 rounded-full shadow-lg items-center gap-2 transition-transform hover:scale-105 cursor-pointer border-2 border-white ring-4 ring-purple-300/40"
         >
           <span className="text-base animate-bounce">🤖</span>
           <span>{t('hero.cta_ai')}</span>
         </button>
       )}
 
-      {/* Floating Admin AI Copilot Button (Admin Only) */}
+      {/* Floating Admin AI Copilot Button (Desktop Only) */}
       {isAdmin && (
         <button
           data-testid="admin-ai-floating-btn"
           onClick={() => setIsAdminChatOpen(true)}
-          className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-purple-700 via-indigo-700 to-slate-900 hover:from-purple-800 hover:to-slate-950 text-white font-bold text-xs py-3 px-4 rounded-full shadow-xl flex items-center gap-2 transition-transform hover:scale-105 cursor-pointer border-2 border-white/80 ring-4 ring-purple-400/40"
+          className="hidden sm:flex fixed bottom-6 right-6 z-40 bg-gradient-to-r from-purple-700 via-indigo-700 to-slate-900 hover:from-purple-800 hover:to-slate-950 text-white font-bold text-xs py-3 px-4 rounded-full shadow-xl items-center gap-2 transition-transform hover:scale-105 cursor-pointer border-2 border-white/80 ring-4 ring-purple-400/40"
         >
           <span className="text-base animate-bounce">⚡</span>
           <span>{t('admin_copilot.btn_open')}</span>

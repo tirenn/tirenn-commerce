@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tirenn/commerce/backend/internal/domain"
 	"github.com/tirenn/commerce/backend/internal/logger"
 )
 
@@ -18,6 +19,7 @@ type UseCase interface {
 	UpdateProduct(ctx context.Context, id uint, req *UpdateProductRequest) (*Product, error)
 	DeleteProduct(ctx context.Context, id uint) error
 	ListProducts(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error)
+	GetRecommendations(ctx context.Context, productID uint, limit int) ([]Product, error)
 
 	AdjustStock(ctx context.Context, productID uint, req *StockAdjustRequest, adminID uint) (*Product, error)
 	GetStockLogs(ctx context.Context, productID uint) ([]StockAdjustmentLog, error)
@@ -27,6 +29,12 @@ type UseCase interface {
 
 	CreateSubCategory(ctx context.Context, req *CreateSubCategoryRequest) (*SubCategory, error)
 	ListSubCategories(ctx context.Context, categoryID uint) ([]SubCategory, error)
+}
+
+type AIClient interface {
+	SearchSemantic(ctx context.Context, query string, categoryID uint, limit int) ([]uint, error)
+	SyncProducts(ctx context.Context, products []Product) error
+	GetRecommendations(ctx context.Context, productID uint, limit int) ([]uint, error)
 }
 
 type useCase struct {
@@ -316,4 +324,44 @@ func (u *useCase) ListSubCategories(ctx context.Context, categoryID uint) ([]Sub
 		return nil, err
 	}
 	return subCategories, nil
+}
+
+func (u *useCase) GetRecommendations(ctx context.Context, productID uint, limit int) ([]Product, error) {
+	if limit < 4 {
+		limit = 4
+	}
+	if limit > 8 {
+		limit = 8
+	}
+
+	p, err := u.repo.FindByID(ctx, productID)
+	if err != nil || p == nil {
+		return nil, domain.ErrNotFound
+	}
+
+	// 1. Try AI service recommendations if available
+	if u.aiClient != nil {
+		ids, err := u.aiClient.GetRecommendations(ctx, productID, limit)
+		if err == nil && len(ids) > 0 {
+			prods, err := u.repo.FindByIDs(ctx, ids)
+			if err == nil && len(prods) > 0 {
+				return prods, nil
+			}
+		}
+	}
+
+	// 2. Fallback to vector similarity from repository
+	recs, err := u.repo.GetRecommendations(ctx, productID, limit)
+	if err == nil && len(recs) >= limit {
+		return recs, nil
+	}
+
+	// 3. Fallback to category top sellers
+	catSellers, err := u.repo.GetCategoryTopSellers(ctx, p.CategoryID, productID, limit)
+	if err == nil && len(catSellers) > 0 {
+		return catSellers, nil
+	}
+
+	// 4. Fallback to overall top sellers
+	return u.repo.GetOverallTopSellers(ctx, productID, limit)
 }

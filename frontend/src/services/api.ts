@@ -1,24 +1,25 @@
 import type { ApiResponse, Product } from '../types';
 
 function getApiBaseUrl(): string {
-  if (import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, '');
-  }
-  if (import.meta.env.VITE_BACKEND_URL) {
-    const root = import.meta.env.VITE_BACKEND_URL.replace(/\/+$/, '');
-    return `${root}/api/v1`;
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    const host = window.location.hostname;
+    if (import.meta.env.VITE_API_BASE_URL) {
+      return import.meta.env.VITE_API_BASE_URL.replace(/localhost|127\.0\.0\.1/, host).replace(/\/+$/, '');
+    }
+    return `http://${host}:8080/api/v1`;
   }
   return 'http://localhost:8080/api/v1';
 }
 
 function getAIServiceUrl(): string {
-  if (import.meta.env.VITE_AI_SERVICE_URL) {
-    return import.meta.env.VITE_AI_SERVICE_URL.replace(/\/+$/, '');
+  if (typeof window !== 'undefined' && window.location.hostname) {
+    const host = window.location.hostname;
+    if (import.meta.env.VITE_AI_SERVICE_URL) {
+      return import.meta.env.VITE_AI_SERVICE_URL.replace(/localhost|127\.0\.0\.1/, host).replace(/\/+$/, '');
+    }
+    return `http://${host}:8000/api/v1`;
   }
-  if (import.meta.env.VITE_AI_API_BASE_URL) {
-    return import.meta.env.VITE_AI_API_BASE_URL.replace(/\/+$/, '');
-  }
-  return getApiBaseUrl();
+  return 'http://localhost:8000/api/v1';
 }
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -86,6 +87,60 @@ export async function getRecommendations(
   } catch (err) {
     console.error(`Failed to fetch recommendations for product ${productId}:`, err);
     return [];
+  }
+}
+
+export async function searchSemanticAI(
+  query: string,
+  options: {
+    limit?: number;
+    categoryId?: number;
+    scoreThreshold?: number;
+    minPrice?: number;
+    maxPrice?: number;
+    inStock?: boolean;
+  } = {}
+): Promise<ApiResponse<Product[]>> {
+  const url = `${AI_API_BASE_URL}/search/semantic`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query,
+        limit: options.limit ?? 12,
+        category_id: options.categoryId ?? 0,
+        score_threshold: options.scoreThreshold,
+        min_price: options.minPrice,
+        max_price: options.maxPrice,
+        in_stock: options.inStock,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        success: false,
+        error: data.detail || `AI Search failed with status ${res.status}`,
+      };
+    }
+    return {
+      success: true,
+      data: data.data || [],
+      meta: {
+        total_rows: data.total_results || (data.data ? data.data.length : 0),
+        total_page: 1,
+        page: 1,
+        limit: options.limit ?? 12,
+      },
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || 'Failed to connect to AI Service',
+    };
   }
 }
 
