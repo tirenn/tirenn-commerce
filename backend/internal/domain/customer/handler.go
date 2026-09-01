@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"tirenn-ai-commerce/internal/domain"
-	"tirenn-ai-commerce/internal/response"
+	"github.com/tirenn/commerce/backend/internal/domain"
+	"github.com/tirenn/commerce/backend/internal/response"
 )
 
 type Handler struct {

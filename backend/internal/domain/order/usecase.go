@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"tirenn-ai-commerce/internal/domain"
-	"tirenn-ai-commerce/internal/logger"
+	"github.com/tirenn/commerce/backend/internal/domain"
+	"github.com/tirenn/commerce/backend/internal/logger"
 )
 
 type UseCase interface {

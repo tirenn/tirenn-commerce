@@ -3,8 +3,8 @@ package order
 import (
 	"time"
 
-	"tirenn-ai-commerce/internal/domain/auth"
-	"tirenn-ai-commerce/internal/domain/product"
+	"github.com/tirenn/commerce/backend/internal/domain/auth"
+	"github.com/tirenn/commerce/backend/internal/domain/product"
 )
 
 const (
@@ -21,22 +21,22 @@ const (
 )
 
 type Order struct {
-	ID              uint            `gorm:"primaryKey;autoIncrement" json:"id"`
-	OrderNumber     string          `gorm:"size:50;uniqueIndex;not null" json:"order_number"`
-	UserID          uint            `gorm:"not null;index" json:"user_id"`
-	User            auth.User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	TotalAmount     float64         `gorm:"type:decimal(12,2);not null;default:0.00" json:"total_amount"`
-	Currency        string          `gorm:"size:10;default:'IDR';not null" json:"currency"`
-	Status          string          `gorm:"size:30;default:'PENDING';not null;index" json:"status"`
-	ShippingName    string          `gorm:"size:100;not null" json:"shipping_name"`
-	ShippingPhone   string          `gorm:"size:30;not null" json:"shipping_phone"`
-	ShippingAddress string          `gorm:"type:text;not null" json:"shipping_address"`
-	PaymentMethod   string          `gorm:"size:50;default:'SIMULATED_CARD';not null" json:"payment_method"`
-	PaymentStatus   string          `gorm:"size:30;default:'PAID';not null" json:"payment_status"`
-	Notes           string          `gorm:"type:text" json:"notes"`
-	Items           []OrderItem     `gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE" json:"items"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	ID              uint        `gorm:"primaryKey;autoIncrement" json:"id"`
+	OrderNumber     string      `gorm:"size:50;uniqueIndex;not null" json:"order_number"`
+	UserID          uint        `gorm:"not null;index" json:"user_id"`
+	User            auth.User   `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	TotalAmount     float64     `gorm:"type:decimal(12,2);not null;default:0.00" json:"total_amount"`
+	Currency        string      `gorm:"size:10;default:'IDR';not null" json:"currency"`
+	Status          string      `gorm:"size:30;default:'PENDING';not null;index" json:"status"`
+	ShippingName    string      `gorm:"size:100;not null" json:"shipping_name"`
+	ShippingPhone   string      `gorm:"size:30;not null" json:"shipping_phone"`
+	ShippingAddress string      `gorm:"type:text;not null" json:"shipping_address"`
+	PaymentMethod   string      `gorm:"size:50;default:'SIMULATED_CARD';not null" json:"payment_method"`
+	PaymentStatus   string      `gorm:"size:30;default:'PAID';not null" json:"payment_status"`
+	Notes           string      `gorm:"type:text" json:"notes"`
+	Items           []OrderItem `gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE" json:"items"`
+	CreatedAt       time.Time   `json:"created_at"`
+	UpdatedAt       time.Time   `json:"updated_at"`
 }
 
 func (Order) TableName() string {

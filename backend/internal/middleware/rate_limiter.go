@@ -9,9 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"tirenn-ai-commerce/internal/config"
-	"tirenn-ai-commerce/internal/logger"
-	"tirenn-ai-commerce/internal/response"
+	"github.com/tirenn/commerce/backend/internal/config"
+	"github.com/tirenn/commerce/backend/internal/logger"
+	"github.com/tirenn/commerce/backend/internal/response"
 )
 
 // RateLimiter returns a Gin middleware that enforces distributed rate limiting via Redis

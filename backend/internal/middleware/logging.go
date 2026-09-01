@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"tirenn-ai-commerce/internal/logger"
+	"github.com/tirenn/commerce/backend/internal/logger"
 )
 
 type StructuredLog struct {

@@ -3,7 +3,7 @@ package dashboard
 import (
 	"context"
 
-	"tirenn-ai-commerce/internal/logger"
+	"github.com/tirenn/commerce/backend/internal/logger"
 )
 
 type UseCase interface {

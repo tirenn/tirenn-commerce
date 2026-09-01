@@ -8,11 +8,10 @@ import (
 	"time"
 
 	"github.com/pgvector/pgvector-go"
-	"tirenn-ai-commerce/internal/client/ollama"
-	"tirenn-ai-commerce/internal/domain/auth"
-	"tirenn-ai-commerce/internal/domain/order"
-	"tirenn-ai-commerce/internal/domain/product"
-	"tirenn-ai-commerce/internal/security"
+	"github.com/tirenn/commerce/backend/internal/domain/auth"
+	"github.com/tirenn/commerce/backend/internal/domain/order"
+	"github.com/tirenn/commerce/backend/internal/domain/product"
+	"github.com/tirenn/commerce/backend/internal/security"
 	"gorm.io/gorm"
 )
 
@@ -29,16 +28,16 @@ type productItemDef struct {
 	Description string
 }
 
-func Seed(db *gorm.DB, ollamaClients ...*ollama.Client) error {
+func Seed(db *gorm.DB) error {
 	var productCount int64
 	db.Model(&product.Product{}).Count(&productCount)
 	if productCount < 560 {
-		return ForceSeed(db, ollamaClients...)
+		return ForceSeed(db)
 	}
 
 	var nullEmbeddingCount int64
 	db.Model(&product.Product{}).Where("embedding IS NULL").Count(&nullEmbeddingCount)
-	if nullEmbeddingCount > 0 && len(ollamaClients) > 0 && ollamaClients[0] != nil {
+	if nullEmbeddingCount > 0 {
 		log.Printf("🧠 Backfilling %d missing product embeddings...", nullEmbeddingCount)
 		var prods []product.Product
 		db.Where("embedding IS NULL").Find(&prods)

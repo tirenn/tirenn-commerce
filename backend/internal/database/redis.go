@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"tirenn-ai-commerce/internal/config"
+	"github.com/tirenn/commerce/backend/internal/config"
 )
 
 // InitRedis initializes and tests the connection to Redis cache and rate limiter server

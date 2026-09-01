@@ -6,15 +6,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"tirenn-ai-commerce/internal/config"
-	"tirenn-ai-commerce/internal/domain/ai"
-	"tirenn-ai-commerce/internal/domain/auth"
-	"tirenn-ai-commerce/internal/domain/customer"
-	"tirenn-ai-commerce/internal/domain/dashboard"
-	"tirenn-ai-commerce/internal/domain/order"
-	"tirenn-ai-commerce/internal/domain/product"
-	"tirenn-ai-commerce/internal/middleware"
-	"tirenn-ai-commerce/internal/response"
+	"github.com/tirenn/commerce/backend/internal/config"
+	"github.com/tirenn/commerce/backend/internal/domain/auth"
+	"github.com/tirenn/commerce/backend/internal/domain/customer"
+	"github.com/tirenn/commerce/backend/internal/domain/dashboard"
+	"github.com/tirenn/commerce/backend/internal/domain/order"
+	"github.com/tirenn/commerce/backend/internal/domain/product"
+	"github.com/tirenn/commerce/backend/internal/middleware"
+	"github.com/tirenn/commerce/backend/internal/response"
 )
 
 // Handlers holds all domain HTTP handlers for route registration
@@ -24,7 +23,6 @@ type Handlers struct {
 	Order     *order.Handler
 	Customer  *customer.Handler
 	Dashboard *dashboard.Handler
-	AI        *ai.Handler
 }
 
 // SetupRouter initializes Gin engine, middleware, and all API endpoints
@@ -63,9 +61,6 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, rdb *redis.Client) *gin
 	handlers.Order.RegisterRoutes(v1, jwtAuth, adminGroup)
 	handlers.Customer.RegisterRoutes(adminGroup)
 	handlers.Dashboard.RegisterRoutes(adminGroup)
-	if handlers.AI != nil {
-		handlers.AI.RegisterRoutes(v1)
-	}
 
 	return r
 }

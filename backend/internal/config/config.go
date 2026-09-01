@@ -60,12 +60,11 @@ type JWTConfig struct {
 // AIConfig stores AI reasoning, temperatures, thresholds, and hybrid search weights
 type AIConfig struct {
 	OllamaURL                   string  `mapstructure:"OLLAMA_BASE_URL"`
-	OllamaModel                 string  `mapstructure:"OLLAMA_CHAT_MODEL"`
 	OllamaEmbeddingModel        string  `mapstructure:"OLLAMA_EMBED_MODEL"`
-	LLMToolTemperature         float64 `mapstructure:"LLM_TOOL_TEMPERATURE"`
-	LLMChatTemperature         float64 `mapstructure:"LLM_CHAT_TEMPERATURE"`
+	LLMToolTemperature          float64 `mapstructure:"LLM_TOOL_TEMPERATURE"`
+	LLMChatTemperature          float64 `mapstructure:"LLM_CHAT_TEMPERATURE"`
 	DefaultSearchScoreThreshold float64 `mapstructure:"DEFAULT_SEARCH_SCORE_THRESHOLD"`
-	ChatSearchScoreThreshold   float64 `mapstructure:"CHAT_SEARCH_SCORE_THRESHOLD"`
+	ChatSearchScoreThreshold    float64 `mapstructure:"CHAT_SEARCH_SCORE_THRESHOLD"`
 	ChatSearchFallbackThreshold float64 `mapstructure:"CHAT_SEARCH_FALLBACK_THRESHOLD"`
 	EnableHybridSearch          bool    `mapstructure:"ENABLE_HYBRID_SEARCH"`
 	HybridVectorWeight          float64 `mapstructure:"HYBRID_VECTOR_WEIGHT"`
@@ -83,36 +82,27 @@ type Config struct {
 	AI       AIConfig       `mapstructure:",squash"`
 
 	// Flat field accessors for convenience
-	Port                        string
-	Environment                 string
-	AIServiceURL                string
-	OllamaURL                   string
-	OllamaModel                 string
-	OllamaEmbeddingModel        string
-	LLMToolTemperature         float64
-	LLMChatTemperature         float64
-	DefaultSearchScoreThreshold float64
-	ChatSearchScoreThreshold   float64
-	ChatSearchFallbackThreshold float64
-	EnableHybridSearch          bool
-	HybridVectorWeight          float64
-	HybridTextWeight            float64
-	SearchLimit                 int
-	ChatSearchLimit             int
-	DBHost                      string
-	DBPort                      string
-	DBUser                      string
-	DBPassword                  string
-	DBName                      string
-	RedisHost                   string
-	RedisPort                   string
-	RedisPassword               string
-	RedisDB                     int
-	RateLimitReqPerMinute       int
-	RateLimitWindowSeconds      int
-	JWTSecret                   string
-	JWTExpireHours              int
-	InternalAPIKey              string
+	Port                   string
+	Environment            string
+	AIServiceURL           string
+	OllamaURL              string
+	OllamaEmbeddingModel   string
+	HybridVectorWeight     float64
+	ChatSearchLimit        int
+	DBHost                 string
+	DBPort                 string
+	DBUser                 string
+	DBPassword             string
+	DBName                 string
+	RedisHost              string
+	RedisPort              string
+	RedisPassword          string
+	RedisDB                int
+	RateLimitReqPerMinute  int
+	RateLimitWindowSeconds int
+	JWTSecret              string
+	JWTExpireHours         int
+	InternalAPIKey         string
 }
 
 // LoadConfig initializes Viper, binds environment variables, loads .env if present, and returns Config
@@ -124,12 +114,9 @@ func LoadConfig(paths ...string) *Config {
 	v.SetDefault("ENVIRONMENT", "development")
 	v.SetDefault("AI_SERVICE_URL", "http://localhost:8000")
 	v.SetDefault("OLLAMA_BASE_URL", "http://ollama:11434")
-	v.SetDefault("OLLAMA_CHAT_MODEL", "qwen2.5:3b")
 	v.SetDefault("OLLAMA_EMBED_MODEL", "paraphrase-multilingual")
 
 	// AI LLM & Hybrid Search Defaults
-	v.SetDefault("LLM_TOOL_TEMPERATURE", 0.0)
-	v.SetDefault("LLM_CHAT_TEMPERATURE", 0.3)
 	v.SetDefault("DEFAULT_SEARCH_SCORE_THRESHOLD", 0.45)
 	v.SetDefault("CHAT_SEARCH_SCORE_THRESHOLD", 0.40)
 	v.SetDefault("CHAT_SEARCH_FALLBACK_THRESHOLD", 0.25)
@@ -191,19 +178,6 @@ func LoadConfig(paths ...string) *Config {
 	cfg.Port = v.GetString("PORT")
 	cfg.Environment = v.GetString("ENVIRONMENT")
 	cfg.AIServiceURL = v.GetString("AI_SERVICE_URL")
-	cfg.OllamaURL = v.GetString("OLLAMA_BASE_URL")
-	cfg.OllamaModel = v.GetString("OLLAMA_CHAT_MODEL")
-	cfg.OllamaEmbeddingModel = v.GetString("OLLAMA_EMBED_MODEL")
-	cfg.LLMToolTemperature = v.GetFloat64("LLM_TOOL_TEMPERATURE")
-	cfg.LLMChatTemperature = v.GetFloat64("LLM_CHAT_TEMPERATURE")
-	cfg.DefaultSearchScoreThreshold = v.GetFloat64("DEFAULT_SEARCH_SCORE_THRESHOLD")
-	cfg.ChatSearchScoreThreshold = v.GetFloat64("CHAT_SEARCH_SCORE_THRESHOLD")
-	cfg.ChatSearchFallbackThreshold = v.GetFloat64("CHAT_SEARCH_FALLBACK_THRESHOLD")
-	cfg.EnableHybridSearch = v.GetBool("ENABLE_HYBRID_SEARCH")
-	cfg.HybridVectorWeight = v.GetFloat64("HYBRID_VECTOR_WEIGHT")
-	cfg.HybridTextWeight = v.GetFloat64("HYBRID_TEXT_WEIGHT")
-	cfg.SearchLimit = v.GetInt("SEARCH_LIMIT")
-	cfg.ChatSearchLimit = v.GetInt("CHAT_SEARCH_LIMIT")
 	cfg.DBHost = v.GetString("DB_HOST")
 	cfg.DBPort = v.GetString("DB_PORT")
 	cfg.DBUser = v.GetString("DB_USER")
@@ -238,18 +212,8 @@ func LoadConfig(paths ...string) *Config {
 	cfg.JWT.ExpireHours = cfg.JWTExpireHours
 	cfg.JWT.Issuer = v.GetString("JWT_ISSUER")
 
-	cfg.AI.OllamaURL = cfg.OllamaURL
-	cfg.AI.OllamaModel = cfg.OllamaModel
 	cfg.AI.OllamaEmbeddingModel = cfg.OllamaEmbeddingModel
-	cfg.AI.LLMToolTemperature = cfg.LLMToolTemperature
-	cfg.AI.LLMChatTemperature = cfg.LLMChatTemperature
-	cfg.AI.DefaultSearchScoreThreshold = cfg.DefaultSearchScoreThreshold
-	cfg.AI.ChatSearchScoreThreshold = cfg.ChatSearchScoreThreshold
-	cfg.AI.ChatSearchFallbackThreshold = cfg.ChatSearchFallbackThreshold
-	cfg.AI.EnableHybridSearch = cfg.EnableHybridSearch
 	cfg.AI.HybridVectorWeight = cfg.HybridVectorWeight
-	cfg.AI.HybridTextWeight = cfg.HybridTextWeight
-	cfg.AI.SearchLimit = cfg.SearchLimit
 	cfg.AI.ChatSearchLimit = cfg.ChatSearchLimit
 
 	return &cfg

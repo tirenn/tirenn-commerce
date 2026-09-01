@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"tirenn-ai-commerce/internal/domain"
+	"github.com/tirenn/commerce/backend/internal/domain"
 )
 
 // PaginationMeta standard structure for paginated lists

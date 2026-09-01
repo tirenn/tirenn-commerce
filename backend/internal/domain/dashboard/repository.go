@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"tirenn-ai-commerce/internal/domain/auth"
-	"tirenn-ai-commerce/internal/domain/order"
-	"tirenn-ai-commerce/internal/domain/product"
+	"github.com/tirenn/commerce/backend/internal/domain/auth"
+	"github.com/tirenn/commerce/backend/internal/domain/order"
+	"github.com/tirenn/commerce/backend/internal/domain/product"
 	"gorm.io/gorm"
 )
 

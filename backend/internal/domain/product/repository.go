@@ -2,12 +2,9 @@ package product
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
-	"tirenn-ai-commerce/internal/config"
-
-	"github.com/pgvector/pgvector-go"
+	"github.com/tirenn/commerce/backend/internal/config"
 	"gorm.io/gorm"
 )
 
@@ -143,7 +140,6 @@ func (r *repository) GetLowStock(ctx context.Context, limit int) ([]Product, err
 		Find(&products).Error
 	return products, err
 }
-
 func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Product, int64, error) {
 	var products []Product
 	var total int64
@@ -158,54 +154,16 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 		query = query.Where("products.is_active = ?", true)
 	}
 
-	cleanSearch := strings.TrimSpace(filter.Search)
-	hasValidSearch := len(cleanSearch) >= 3
-
-	// Hybrid Dense Vector (bge-m3) + Trigram Substring Search
-	if hasValidSearch {
-		vw := 0.40
-		tw := 0.60
-		threshold := 0.45
-		if r.cfg != nil {
-			if r.cfg.HybridVectorWeight > 0 {
-				vw = r.cfg.HybridVectorWeight
-			}
-			if r.cfg.HybridTextWeight > 0 {
-				tw = r.cfg.HybridTextWeight
-			}
-			if r.cfg.DefaultSearchScoreThreshold > 0 {
-				threshold = r.cfg.DefaultSearchScoreThreshold
-			}
-		}
-
-		if len(filter.Embedding) > 0 {
-			vec := pgvector.NewVector(filter.Embedding)
-			kwPattern := "%" + strings.ToLower(cleanSearch) + "%"
-			// Match if vector similarity threshold passed OR keyword substring matches
-			whereSQL := fmt.Sprintf(`
-				(
-					products.embedding IS NOT NULL AND (
-						((1.0 - (products.embedding <=> ?)) * %.2f + 
-						(CASE 
-							WHEN LOWER(products.name) LIKE ? THEN 1.0 
-							WHEN LOWER(products.description) LIKE ? THEN 0.5 
-							ELSE 0.0 
-						END) * %.2f) >= %.2f
-					)
-				) OR (
-					products.name ILIKE ? OR products.description ILIKE ? OR products.sku ILIKE ? OR categories.name ILIKE ? OR sub_categories.name ILIKE ?
-				)
-			`, vw, tw, threshold)
-			query = query.Where(whereSQL, vec, kwPattern, kwPattern, kwPattern, kwPattern, kwPattern, kwPattern, kwPattern)
-		} else {
-			tokens := strings.Fields(cleanSearch)
-			for _, token := range tokens {
-				pattern := "%" + token + "%"
-				query = query.Where(
-					"(products.name ILIKE ? OR products.description ILIKE ? OR products.sku ILIKE ? OR categories.name ILIKE ? OR sub_categories.name ILIKE ?)",
-					pattern, pattern, pattern, pattern, pattern,
-				)
-			}
+	// PostgreSQL Case-Insensitive ILIKE Substring Search
+	if filter.Search != "" {
+		cleanSearch := strings.TrimSpace(filter.Search)
+		tokens := strings.Fields(cleanSearch)
+		for _, token := range tokens {
+			pattern := "%" + token + "%"
+			query = query.Where(
+				"(products.name ILIKE ? OR products.description ILIKE ? OR products.sku ILIKE ? OR categories.name ILIKE ? OR sub_categories.name ILIKE ?)",
+				pattern, pattern, pattern, pattern, pattern,
+			)
 		}
 	}
 
@@ -238,17 +196,6 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 		return nil, 0, err
 	}
 
-	vw := 0.40
-	tw := 0.60
-	if r.cfg != nil {
-		if r.cfg.HybridVectorWeight > 0 {
-			vw = r.cfg.HybridVectorWeight
-		}
-		if r.cfg.HybridTextWeight > 0 {
-			tw = r.cfg.HybridTextWeight
-		}
-	}
-
 	// Apply Sorting
 	switch filter.Sort {
 	case "price_asc":
@@ -258,41 +205,9 @@ func (r *repository) List(ctx context.Context, filter ProductFilterQuery) ([]Pro
 	case "name_asc":
 		query = query.Order("products.name ASC")
 	case "newest":
-		if hasValidSearch && len(filter.Embedding) > 0 {
-			vec := pgvector.NewVector(filter.Embedding)
-			kwPattern := "%" + strings.ToLower(cleanSearch) + "%"
-			orderSQL := fmt.Sprintf(`
-				CASE WHEN products.embedding IS NOT NULL THEN
-					((1.0 - (products.embedding <=> ?)) * %.2f + 
-					(CASE 
-						WHEN LOWER(products.name) LIKE ? THEN 1.0 
-						WHEN LOWER(products.description) LIKE ? THEN 0.5 
-						ELSE 0.0 
-					END) * %.2f)
-				ELSE 0.0 END DESC, products.rating DESC, products.id ASC
-			`, vw, tw)
-			query = query.Order(gorm.Expr(orderSQL, vec, kwPattern, kwPattern))
-		} else {
-			query = query.Order("products.id DESC")
-		}
+		query = query.Order("products.id ASC")
 	default:
-		if hasValidSearch && len(filter.Embedding) > 0 {
-			vec := pgvector.NewVector(filter.Embedding)
-			kwPattern := "%" + strings.ToLower(cleanSearch) + "%"
-			orderSQL := fmt.Sprintf(`
-				CASE WHEN products.embedding IS NOT NULL THEN
-					((1.0 - (products.embedding <=> ?)) * %.2f + 
-					(CASE 
-						WHEN LOWER(products.name) LIKE ? THEN 1.0 
-						WHEN LOWER(products.description) LIKE ? THEN 0.5 
-						ELSE 0.0 
-					END) * %.2f)
-				ELSE 0.0 END DESC, products.rating DESC, products.id ASC
-			`, vw, tw)
-			query = query.Order(gorm.Expr(orderSQL, vec, kwPattern, kwPattern))
-		} else {
-			query = query.Order("products.id ASC")
-		}
+		query = query.Order("products.id ASC")
 	}
 
 	// Pagination

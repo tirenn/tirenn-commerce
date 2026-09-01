@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"tirenn-ai-commerce/internal/domain/product"
+	"github.com/tirenn/commerce/backend/internal/domain/product"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

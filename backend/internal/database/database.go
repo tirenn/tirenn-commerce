@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"tirenn-ai-commerce/internal/config"
+	"github.com/tirenn/commerce/backend/internal/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

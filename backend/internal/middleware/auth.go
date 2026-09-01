@@ -4,11 +4,11 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"tirenn-ai-commerce/internal/config"
-	"tirenn-ai-commerce/internal/domain"
-	"tirenn-ai-commerce/internal/domain/auth"
-	"tirenn-ai-commerce/internal/response"
-	"tirenn-ai-commerce/internal/security"
+	"github.com/tirenn/commerce/backend/internal/config"
+	"github.com/tirenn/commerce/backend/internal/domain"
+	"github.com/tirenn/commerce/backend/internal/domain/auth"
+	"github.com/tirenn/commerce/backend/internal/response"
+	"github.com/tirenn/commerce/backend/internal/security"
 )
 
 // JWTAuth verifies the Bearer token in the Authorization header

@@ -3,7 +3,7 @@ package customer
 import (
 	"context"
 
-	"tirenn-ai-commerce/internal/domain/auth"
+	"github.com/tirenn/commerce/backend/internal/domain/auth"
 	"gorm.io/gorm"
 )
 

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"tirenn-ai-commerce/internal/config"
-	"tirenn-ai-commerce/internal/domain"
-	"tirenn-ai-commerce/internal/logger"
-	"tirenn-ai-commerce/internal/security"
+	"github.com/tirenn/commerce/backend/internal/config"
+	"github.com/tirenn/commerce/backend/internal/domain"
+	"github.com/tirenn/commerce/backend/internal/logger"
+	"github.com/tirenn/commerce/backend/internal/security"
 	"gorm.io/gorm"
 )
 

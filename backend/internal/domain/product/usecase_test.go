@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"tirenn-ai-commerce/internal/domain"
-	"tirenn-ai-commerce/internal/response"
+	"github.com/tirenn/commerce/backend/internal/domain"
+	"github.com/tirenn/commerce/backend/internal/response"
 )
 
 type mockProductRepo struct {
@@ -363,8 +363,6 @@ func TestProductUseCase_GetRecommendations_LimitClamping(t *testing.T) {
 		t.Errorf("Expected limit clamped to 8, got %d items", len(recs2))
 	}
 }
-
-
 
 func TestHandler_GetRecommendations(t *testing.T) {
 	gin.SetMode(gin.TestMode)

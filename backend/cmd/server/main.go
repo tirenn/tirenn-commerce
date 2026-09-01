@@ -9,16 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	"tirenn-ai-commerce/internal/client/ollama"
-	"tirenn-ai-commerce/internal/config"
-	"tirenn-ai-commerce/internal/database"
-	"tirenn-ai-commerce/internal/domain/ai"
-	"tirenn-ai-commerce/internal/domain/auth"
-	"tirenn-ai-commerce/internal/domain/customer"
-	"tirenn-ai-commerce/internal/domain/dashboard"
-	"tirenn-ai-commerce/internal/domain/order"
-	"tirenn-ai-commerce/internal/domain/product"
-	"tirenn-ai-commerce/internal/router"
+	"github.com/tirenn/commerce/backend/internal/config"
+	"github.com/tirenn/commerce/backend/internal/database"
+	"github.com/tirenn/commerce/backend/internal/domain/auth"
+	"github.com/tirenn/commerce/backend/internal/domain/customer"
+	"github.com/tirenn/commerce/backend/internal/domain/dashboard"
+	"github.com/tirenn/commerce/backend/internal/domain/order"
+	"github.com/tirenn/commerce/backend/internal/domain/product"
+	"github.com/tirenn/commerce/backend/internal/router"
 )
 
 func main() {
@@ -44,23 +42,12 @@ func main() {
 	customerRepo := customer.NewRepository(db)
 	dashboardRepo := dashboard.NewRepository(db)
 
-	// External Service Client (Infrastructure Layer)
-	ollamaClient := ollama.NewClient(cfg.OllamaURL, cfg.OllamaModel, cfg.OllamaEmbeddingModel)
-
-	// AI Engine Subsystems (Domain Repositories)
-	sessionRepo := ai.NewSessionRepository(rdb)
-	knowledgeRepo := ai.NewKnowledgeRepository(db)
-	ragCacheRepo := ai.NewRAGCacheRepository(rdb)
-
 	// 5. Dependency Injection: UseCases
 	authUseCase := auth.NewUseCase(authRepo, cfg)
-	productUseCase := product.NewUseCase(productRepo, rdb, ollamaClient)
+	productUseCase := product.NewUseCase(productRepo, rdb)
 	orderUseCase := order.NewUseCase(orderRepo)
 	customerUseCase := customer.NewUseCase(customerRepo)
 	dashboardUseCase := dashboard.NewUseCase(dashboardRepo)
-	shopperAIUseCase := ai.NewShopperUseCase(ollamaClient, sessionRepo, knowledgeRepo, ragCacheRepo, productRepo, cfg)
-	adminAIUseCase := ai.NewAdminUseCase(ollamaClient, sessionRepo, knowledgeRepo, ragCacheRepo, productRepo, dashboardRepo, cfg)
-	knowledgeUseCase := ai.NewKnowledgeUseCase(knowledgeRepo, ragCacheRepo, ollamaClient)
 
 	// 6. Dependency Injection: Handlers
 	handlers := &router.Handlers{
@@ -69,7 +56,6 @@ func main() {
 		Order:     order.NewHandler(orderUseCase),
 		Customer:  customer.NewHandler(customerUseCase),
 		Dashboard: dashboard.NewHandler(dashboardUseCase),
-		AI:        ai.NewHandler(shopperAIUseCase, adminAIUseCase, knowledgeUseCase, sessionRepo, productRepo, ollamaClient, cfg),
 	}
 
 	// 7. Setup Router from dedicated router package

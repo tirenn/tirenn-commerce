@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"tirenn-ai-commerce/internal/domain"
-	"tirenn-ai-commerce/internal/response"
+
+	"github.com/tirenn/commerce/backend/internal/response"
 )
 
 type Handler struct {
@@ -23,7 +23,6 @@ func (h *Handler) RegisterRoutes(publicGroup *gin.RouterGroup, adminGroup *gin.R
 	// Public Catalog Routes
 	publicGroup.GET("/products", h.ListProducts)
 	publicGroup.GET("/products/:id", h.GetProduct)
-	publicGroup.GET("/products/:id/recommendations", h.GetRecommendations)
 	publicGroup.GET("/categories", h.ListCategories)
 	publicGroup.GET("/sub-categories", h.ListSubCategories)
 
@@ -44,14 +43,14 @@ func (h *Handler) RegisterRoutes(publicGroup *gin.RouterGroup, adminGroup *gin.R
 func (h *Handler) ListProducts(c *gin.Context) {
 	var query ProductFilterQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
-		response.Error(c, "Invalid query parameters", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid query parameters", err)
 		return
 	}
 
 	query.IsAdmin = false
 	products, total, err := h.useCase.ListProducts(c.Request.Context(), query)
 	if err != nil {
-		response.Error(c, "Failed to fetch products", err)
+		response.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch products", err)
 		return
 	}
 
@@ -75,14 +74,14 @@ func (h *Handler) ListProducts(c *gin.Context) {
 func (h *Handler) AdminListProducts(c *gin.Context) {
 	var query ProductFilterQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
-		response.Error(c, "Invalid query parameters", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid query parameters", err)
 		return
 	}
 
 	query.IsAdmin = true
 	products, total, err := h.useCase.ListProducts(c.Request.Context(), query)
 	if err != nil {
-		response.Error(c, "Failed to fetch products", err)
+		response.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch products", err)
 		return
 	}
 
@@ -110,7 +109,7 @@ func (h *Handler) GetProduct(c *gin.Context) {
 	if id, err := strconv.ParseUint(param, 10, 32); err == nil {
 		product, err := h.useCase.GetProductByID(c.Request.Context(), uint(id))
 		if err != nil {
-			response.Error(c, "Product not found", domain.ErrNotFound)
+			response.ErrorResponse(c, http.StatusNotFound, "Product not found", err)
 			return
 		}
 		response.Success(c, http.StatusOK, "Product retrieved", product)
@@ -119,54 +118,24 @@ func (h *Handler) GetProduct(c *gin.Context) {
 
 	product, err := h.useCase.GetProductBySlug(c.Request.Context(), param)
 	if err != nil {
-		response.Error(c, "Product not found", domain.ErrNotFound)
+		response.ErrorResponse(c, http.StatusNotFound, "Product not found", err)
 		return
 	}
 
 	response.Success(c, http.StatusOK, "Product retrieved", product)
 }
 
-// GetRecommendations retrieves AI-based product recommendations with fallback
-func (h *Handler) GetRecommendations(c *gin.Context) {
-	param := c.Param("id")
-	id, err := strconv.ParseUint(param, 10, 32)
-	if err != nil {
-		response.Error(c, "Invalid product ID", domain.ErrBadRequest)
-		return
-	}
-
-	limitStr := c.DefaultQuery("limit", "6")
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit <= 0 {
-		limit = 6
-	}
-
-	if limit < 4 {
-		limit = 4
-	} else if limit > 8 {
-		limit = 8
-	}
-
-	products, err := h.useCase.GetRecommendations(c.Request.Context(), uint(id), limit)
-	if err != nil {
-		response.Error(c, "Product not found", domain.ErrNotFound)
-		return
-	}
-
-	response.Success(c, http.StatusOK, "Recommendations retrieved successfully", products)
-}
-
 // CreateProduct creates a new product (Admin)
 func (h *Handler) CreateProduct(c *gin.Context) {
 	var req CreateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, "Invalid product payload", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid product payload", err)
 		return
 	}
 
 	product, err := h.useCase.CreateProduct(c.Request.Context(), &req)
 	if err != nil {
-		response.Error(c, err.Error(), err)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid product payload", err)
 		return
 	}
 
@@ -178,19 +147,19 @@ func (h *Handler) UpdateProduct(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		response.Error(c, "Invalid product ID", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
 
 	var req UpdateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, "Invalid update payload", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid update payload", err)
 		return
 	}
 
 	product, err := h.useCase.UpdateProduct(c.Request.Context(), uint(id), &req)
 	if err != nil {
-		response.Error(c, err.Error(), err)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid update payload", err)
 		return
 	}
 
@@ -202,12 +171,12 @@ func (h *Handler) DeleteProduct(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		response.Error(c, "Invalid product ID", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
 
 	if err := h.useCase.DeleteProduct(c.Request.Context(), uint(id)); err != nil {
-		response.Error(c, err.Error(), err)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
 
@@ -219,13 +188,13 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		response.Error(c, "Invalid product ID", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
 
 	var req StockAdjustRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, "Invalid stock adjustment payload", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid stock adjustment payload", err)
 		return
 	}
 
@@ -239,7 +208,7 @@ func (h *Handler) AdjustStock(c *gin.Context) {
 
 	product, err := h.useCase.AdjustStock(c.Request.Context(), uint(id), &req, adminID)
 	if err != nil {
-		response.Error(c, err.Error(), err)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid stock adjustment payload", err)
 		return
 	}
 
@@ -251,13 +220,13 @@ func (h *Handler) GetStockLogs(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
-		response.Error(c, "Invalid product ID", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
 
 	logs, err := h.useCase.GetStockLogs(c.Request.Context(), uint(id))
 	if err != nil {
-		response.Error(c, "Failed to fetch stock logs", err)
+		response.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch stock logs", err)
 		return
 	}
 
@@ -268,7 +237,7 @@ func (h *Handler) GetStockLogs(c *gin.Context) {
 func (h *Handler) ListCategories(c *gin.Context) {
 	categories, err := h.useCase.ListCategories(c.Request.Context())
 	if err != nil {
-		response.Error(c, "Failed to fetch categories", err)
+		response.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch categories", err)
 		return
 	}
 
@@ -279,13 +248,13 @@ func (h *Handler) ListCategories(c *gin.Context) {
 func (h *Handler) CreateCategory(c *gin.Context) {
 	var req CreateCategoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, "Invalid category payload", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid category payload", err)
 		return
 	}
 
 	category, err := h.useCase.CreateCategory(c.Request.Context(), &req)
 	if err != nil {
-		response.Error(c, err.Error(), err)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid category payload", err)
 		return
 	}
 
@@ -304,7 +273,7 @@ func (h *Handler) ListSubCategories(c *gin.Context) {
 
 	subCategories, err := h.useCase.ListSubCategories(c.Request.Context(), catID)
 	if err != nil {
-		response.Error(c, "Failed to fetch sub-categories", err)
+		response.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch sub-categories", err)
 		return
 	}
 
@@ -315,13 +284,13 @@ func (h *Handler) ListSubCategories(c *gin.Context) {
 func (h *Handler) CreateSubCategory(c *gin.Context) {
 	var req CreateSubCategoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, "Invalid sub-category payload", domain.ErrBadRequest)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid sub-category payload", err)
 		return
 	}
 
 	subCategory, err := h.useCase.CreateSubCategory(c.Request.Context(), &req)
 	if err != nil {
-		response.Error(c, err.Error(), err)
+		response.ErrorResponse(c, http.StatusBadRequest, "Invalid sub-category payload", err)
 		return
 	}
 
