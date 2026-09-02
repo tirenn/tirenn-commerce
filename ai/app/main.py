@@ -38,12 +38,14 @@ logger = logging.getLogger("ai-service.main")
 # Dependency Injection Container (Clean Architecture)
 # ==============================================================================
 
-# 1. Repositories
+# 1. Repositories & Core Services
 embedding_repo = EmbeddingRepository()
 product_repo = ProductRepository()
 knowledge_repo = KnowledgeRepository()
 llm_repo = LLMRepository()
 analytics_repo = AnalyticsRepository()
+from app.core.llm_cache import LLMSemanticCache
+llm_cache = LLMSemanticCache()
 
 # 2. UseCases
 search_usecase = SearchUseCase(embedding_repo=embedding_repo, product_repo=product_repo)
@@ -53,7 +55,9 @@ shopper_usecase = ShopperUseCase(
     llm_repo=llm_repo,
     product_repo=product_repo,
     search_usecase=search_usecase,
-    knowledge_usecase=knowledge_usecase
+    knowledge_usecase=knowledge_usecase,
+    embedding_repo=embedding_repo,
+    llm_cache=llm_cache
 )
 admin_usecase = AdminUseCase(
     llm_repo=llm_repo,

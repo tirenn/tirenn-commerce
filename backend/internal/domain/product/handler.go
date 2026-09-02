@@ -25,6 +25,7 @@ func (h *Handler) RegisterRoutes(publicGroup *gin.RouterGroup, adminGroup *gin.R
 	// Public Catalog Routes
 	publicGroup.GET("/products", h.ListProducts)
 	publicGroup.GET("/products/:id", h.GetProduct)
+	publicGroup.GET("/products/:id/recommendations", h.GetRecommendations)
 	publicGroup.GET("/categories", h.ListCategories)
 	publicGroup.GET("/sub-categories", h.ListSubCategories)
 

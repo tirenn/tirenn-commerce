@@ -56,9 +56,9 @@ test.describe('Admin Control Panel Functionality', () => {
     // Verify Admin Copilot Drawer is open
     await expect(page.locator('text=/Tirenn Admin AI Copilot/i').first()).toBeVisible();
     await expect(page.locator('text=/Admin Only/i')).toBeVisible();
-    await expect(page.locator('button:has-text("📊")')).toBeVisible();
-    await expect(page.locator('button:has-text("⚠️")')).toBeVisible();
-    await expect(page.locator('button:has-text("📑")')).toBeVisible();
+    await expect(page.locator('button:has-text("📊"):visible').first()).toBeVisible();
+    await expect(page.locator('button:has-text("⚠️"):visible').first()).toBeVisible();
+    await expect(page.locator('button:has-text("📑"):visible').first()).toBeVisible();
   });
 });
 

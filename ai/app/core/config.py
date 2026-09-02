@@ -82,6 +82,13 @@ class Settings(BaseSettings):
     RAG_CACHE_TTL_SECONDS: int = 86400          # 24-hour expiration for cached RAG responses
     RAG_CACHE_MAX_ENTRIES: int = 100            # Max semantic vector entries stored per document scope
 
+    # Redis LLM Response Semantic Cache Settings (GPTCache Pattern)
+    LLM_CACHE_ENABLED: bool = True
+    LLM_CACHE_SEMANTIC_THRESHOLD: float = 0.92  # 92% vector similarity threshold for cache hit
+    LLM_CACHE_EXACT_TTL_SECONDS: int = 7200     # 2-hour TTL for exact hash cached chat replies
+    LLM_CACHE_SEMANTIC_TTL_SECONDS: int = 7200  # 2-hour TTL for semantic cached chat replies
+    LLM_CACHE_MAX_ENTRIES: int = 500            # Max cached conversational turns per domain scope
+
     # Internal Machine-to-Machine Secret Key
     INTERNAL_API_KEY: str = ""
 

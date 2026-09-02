@@ -20,15 +20,15 @@ test.describe('Storefront User-Facing Functionality', () => {
   });
 
   test('2. Should filter catalog by Category and Sub-category', async ({ page }) => {
-    // Click on Fashion Pria
-    const fashionPriaTab = page.locator('button:has-text("Fashion Pria")').first();
-    await fashionPriaTab.click();
+    // Click on Smartphone & Handphone category tab
+    const phoneCatTab = page.locator('button:has-text("Smartphone")').first();
+    await phoneCatTab.click();
 
     await page.locator('[data-testid^="product-card-"]').first().waitFor();
-    await expect(page.locator('text=Fashion Pria').first()).toBeVisible();
+    await expect(page.locator('text=/Smartphone/i').first()).toBeVisible();
 
-    // Verify Subcategory pills appeared (e.g. Pakaian & Kaos Pria, Sepatu & Sandal Pria)
-    const subCatPill = page.locator('button:has-text("Sepatu & Sandal Pria")').first();
+    // Verify Subcategory pills appeared (e.g. Flagship Smartphones, Mid-Range Smartphones)
+    const subCatPill = page.locator('button:has-text("Flagship")').first();
     if (await subCatPill.isVisible()) {
       await subCatPill.click();
       await page.locator('[data-testid^="product-card-"]').first().waitFor();
@@ -59,9 +59,9 @@ test.describe('Storefront User-Facing Functionality', () => {
 
   test('4. Should search for products using real-time search input', async ({ page }) => {
     const searchInput = page.getByTestId('search-input');
-    await searchInput.fill('AuraSound');
+    await searchInput.fill('Galaxy');
 
-    await expect(page.locator('text=AuraSound').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('text=/Galaxy|Samsung/i').first()).toBeVisible({ timeout: 5000 });
 
     await searchInput.fill('');
     await page.locator('[data-testid^="product-card-"]').first().waitFor();
